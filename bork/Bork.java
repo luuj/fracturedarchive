@@ -7,16 +7,20 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import net.runelite.api.ChatMessageType;
 import net.runelite.api.GameState;
 import net.runelite.api.GraphicsObject;
+import net.runelite.api.Actor;
 import net.runelite.api.NPC;
 import net.runelite.api.Projectile;
 import net.runelite.api.events.AnimationChanged;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.GraphicsObjectCreated;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
+import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ProjectileMoved;
 import net.runelite.api.gameval.AnimationID;
 import net.runelite.api.gameval.NpcID;
@@ -58,6 +62,10 @@ public class Bork extends Encounter
 
 	// The belly drum
 	private static final int BELLY_DRUM = AnimationID.NPC_BORK_GONG_MELEE01;
+
+	/** Ticks taken off Bork's attack speed by the Smorks shouting "faster" this fight. */
+	private int speedUps;
+	private int lastSpeedUpTick = -1;
 
 	/** Bork after a belly drum, and the ticks until the next one (0 = no counter). */
 	private NPC attackingBork;
@@ -122,6 +130,14 @@ public class Bork extends Encounter
 		fires.clear();
 		clearStun();
 		clearAttack();
+		speedUps = 0;
+		lastSpeedUpTick = -1;
+	}
+
+	/** Bork's current ticks between belly drums. */
+	int getAttackSpeed()
+	{
+		return Math.max(1, config.borkAttackTicks() - speedUps);
 	}
 
 	NPC getAttackingBork()
@@ -214,7 +230,7 @@ public class Bork extends Encounter
 			if (animation == BELLY_DRUM)
 			{
 				attackingBork = npc;
-				attackTicks = config.borkAttackTicks();
+				attackTicks = getAttackSpeed();
 			}
 			else if (STUN_ANIMATIONS.contains(animation))
 			{
@@ -236,6 +252,41 @@ public class Bork extends Encounter
 		else if (animation == SMORK_BOMB)
 		{
 			smorkShots.put(npc, 0);
+		}
+	}
+
+	@Override
+	public void onOverheadTextChanged(OverheadTextChanged event)
+	{
+		// The Smorks shout it (Bork too, just in case)
+		Actor actor = event.getActor();
+		if (actor instanceof NPC && (((NPC) actor).getId() == NpcID.TFA_SMORK || ((NPC) actor).getId() == NpcID.TFA_BORK))
+		{
+			checkSpeedUp(event.getOverheadText());
+		}
+	}
+
+	@Override
+	public void onChatMessage(ChatMessage event)
+	{
+		// The shout can also come through as NPC chat ("bork" also matches "Smork")
+		if (event.getType() == ChatMessageType.NPC_SAY || event.getType() == ChatMessageType.GAMEMESSAGE)
+		{
+			String name = event.getName();
+			if (name == null || name.isEmpty() || name.toLowerCase().contains("mork") || name.toLowerCase().contains("bork"))
+			{
+				checkSpeedUp(event.getMessage());
+			}
+		}
+	}
+
+	private void checkSpeedUp(String text)
+	{
+		// Several Smorks can shout at once; count it once per tick
+		if (text != null && text.toLowerCase().contains("faster") && client.getTickCount() != lastSpeedUpTick)
+		{
+			lastSpeedUpTick = client.getTickCount();
+			speedUps++;
 		}
 	}
 

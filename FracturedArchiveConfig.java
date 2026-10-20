@@ -151,14 +151,53 @@ public interface FracturedArchiveConfig extends Config
 	@Alpha
 	@ConfigItem(
 		keyName = "guardianSpecialColor",
-		name = "Special color",
-		description = "Counter color after a special attack",
+		name = "Beam color",
+		description = "Counter color for the beam special",
 		position = 12,
 		section = archiveguardianSection
 	)
 	default Color guardianSpecialColor()
 	{
+		return Color.YELLOW;
+	}
+
+	@Range(min = 1, max = 20)
+	@ConfigItem(
+		keyName = "guardianSpecialTicks",
+		name = "Beam ticks",
+		description = "Ticks from the special animation until the beam hits",
+		position = 15,
+		section = archiveguardianSection
+	)
+	default int guardianSpecialTicks()
+	{
+		return 8;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "guardianMushroomAttackColor",
+		name = "Mushroom attack color",
+		description = "Counter color when the special turns out to be the mushroom attack (mushrooms appear right after it)",
+		position = 16,
+		section = archiveguardianSection
+	)
+	default Color guardianMushroomAttackColor()
+	{
 		return Color.MAGENTA;
+	}
+
+	@Range(min = 1, max = 20)
+	@ConfigItem(
+		keyName = "guardianMushroomAttackTicks",
+		name = "Mushroom attack ticks",
+		description = "Ticks from the special animation until the mushroom attack hits",
+		position = 17,
+		section = archiveguardianSection
+	)
+	default int guardianMushroomAttackTicks()
+	{
+		return 8;
 	}
 
 	@Alpha
@@ -292,14 +331,14 @@ public interface FracturedArchiveConfig extends Config
 	@Range(min = 1, max = 10)
 	@ConfigItem(
 		keyName = "borkAttackTicks",
-		name = "Attack speed",
-		description = "Ticks between Bork's belly drum attacks",
+		name = "Starting attack speed",
+		description = "Ticks between Bork's belly drum attacks at the start. Each \"faster\" shout from the Smorks takes off 1 tick",
 		position = 6,
 		section = borkSection
 	)
 	default int borkAttackTicks()
 	{
-		return 3;
+		return 4;
 	}
 
 	@Alpha
@@ -409,7 +448,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "ezekielSwordLanes",
 		name = "Highlight sword lanes",
-		description = "Mark the straight line each summoned sword will travel along, up to the first wall",
+		description = "Mark the straight line (north, south, east or west) each sword will fly along, up to the first wall",
 		position = 0,
 		section = ezekielSection
 	)
@@ -442,6 +481,286 @@ public interface FracturedArchiveConfig extends Config
 	default Color ezekielSwordFill()
 	{
 		return new Color(255, 200, 0, 40);
+	}
+
+	@ConfigItem(
+		keyName = "ezekielLaneTicks",
+		name = "Show lane ticks",
+		description = "Only show a sword's lane this many ticks before it goes off",
+		position = 3,
+		section = ezekielSection
+	)
+	@Range(min = 1, max = 30)
+	default int ezekielLaneTicks()
+	{
+		return 5;
+	}
+
+	@ConfigItem(
+		keyName = "ezekielSwordTimer",
+		name = "Sword timer",
+		description = "Count down the ticks above each sword until it goes off",
+		position = 4,
+		section = ezekielSection
+	)
+	default boolean ezekielSwordTimer()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ezekielSwordTicks",
+		name = "Sword fuse ticks",
+		description = "Ticks from a sword appearing until it goes off",
+		position = 5,
+		section = ezekielSection
+	)
+	@Range(min = 1, max = 100)
+	default int ezekielSwordTicks()
+	{
+		return 15;
+	}
+
+	@ConfigItem(
+		keyName = "ezekielAttackCounter",
+		name = "Attack counter",
+		description = "Count the ticks above Ezekiel after his melee, magic and special attacks",
+		position = 6,
+		section = ezekielSection
+	)
+	default boolean ezekielAttackCounter()
+	{
+		return true;
+	}
+
+	@Range(min = 1, max = 20)
+	@ConfigItem(
+		keyName = "ezekielAttackSpeed",
+		name = "Attack speed",
+		description = "Ticks between Ezekiel's attacks",
+		position = 7,
+		section = ezekielSection
+	)
+	default int ezekielAttackSpeed()
+	{
+		return 4;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ezekielMeleeColor",
+		name = "Melee color",
+		description = "Counter color after a melee attack",
+		position = 8,
+		section = ezekielSection
+	)
+	default Color ezekielMeleeColor()
+	{
+		return Color.RED;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ezekielMagicColor",
+		name = "Magic color",
+		description = "Counter color after a magic attack",
+		position = 9,
+		section = ezekielSection
+	)
+	default Color ezekielMagicColor()
+	{
+		return Color.CYAN;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ezekielSpecialColor",
+		name = "Special color",
+		description = "Counter color after the star special",
+		position = 10,
+		section = ezekielSection
+	)
+	default Color ezekielSpecialColor()
+	{
+		return Color.YELLOW;
+	}
+
+	@ConfigItem(
+		keyName = "ezekielStarCracks",
+		name = "Highlight star cracks",
+		description = "Mark the tiles of the special's star cracks until they explode",
+		position = 11,
+		section = ezekielSection
+	)
+	default boolean ezekielStarCracks()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ezekielStarBorder",
+		name = "Star border color",
+		description = "Outline color of the star crack tiles",
+		position = 12,
+		section = ezekielSection
+	)
+	default Color ezekielStarBorder()
+	{
+		return new Color(255, 60, 60, 220);
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ezekielStarFill",
+		name = "Star fill color",
+		description = "Fill color of the star crack tiles",
+		position = 13,
+		section = ezekielSection
+	)
+	default Color ezekielStarFill()
+	{
+		return new Color(255, 60, 60, 50);
+	}
+
+	@ConfigItem(
+		keyName = "ezekielFinale",
+		name = "Finale tracker",
+		description = "Count the ticks since the finale started above Ezekiel, and mark the finale sword telegraphs",
+		position = 14,
+		section = ezekielSection
+	)
+	default boolean ezekielFinale()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ezekielFinaleColor",
+		name = "Finale color",
+		description = "Color of the finale counter and sword telegraph tiles",
+		position = 15,
+		section = ezekielSection
+	)
+	default Color ezekielFinaleColor()
+	{
+		return Color.MAGENTA;
+	}
+
+	@ConfigItem(
+		keyName = "ezekielDebug",
+		name = "Debug log",
+		description = "Post Ezekiel's animations, graphics, NPCs and objects to the chat box with tick numbers, to find the finale's safe tiles",
+		position = 16,
+		section = ezekielSection
+	)
+	default boolean ezekielDebug()
+	{
+		return false;
+	}
+
+	// Dreadnoth
+
+	@ConfigItem(
+		keyName = "dreadnothSplatter",
+		name = "Highlight blood splatter",
+		description = "Mark the blood splatter tiles Dreadnoth leaves on the ground",
+		position = 0,
+		section = dreadnothSection
+	)
+	default boolean dreadnothSplatter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dreadnothIncoming",
+		name = "Show incoming splatter",
+		description = "Mark where Dreadnoth's ranged blobs will land while they're in the air",
+		position = 1,
+		section = dreadnothSection
+	)
+	default boolean dreadnothIncoming()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "dreadnothSplatterBorder",
+		name = "Border color",
+		description = "Outline color of the blood splatter tiles",
+		position = 2,
+		section = dreadnothSection
+	)
+	default Color dreadnothSplatterBorder()
+	{
+		return new Color(180, 0, 0, 220);
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "dreadnothSplatterFill",
+		name = "Fill color",
+		description = "Fill color of the blood splatter tiles",
+		position = 3,
+		section = dreadnothSection
+	)
+	default Color dreadnothSplatterFill()
+	{
+		return new Color(180, 0, 0, 60);
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "dreadnothIncomingColor",
+		name = "Incoming color",
+		description = "Outline color of where a ranged blob will land",
+		position = 4,
+		section = dreadnothSection
+	)
+	default Color dreadnothIncomingColor()
+	{
+		return new Color(255, 120, 0, 220);
+	}
+
+	@ConfigItem(
+		keyName = "dreadnothJumpCounter",
+		name = "Jump counter",
+		description = "Count the ticks above Dreadnoth from when he jumps until he lands",
+		position = 5,
+		section = dreadnothSection
+	)
+	default boolean dreadnothJumpCounter()
+	{
+		return true;
+	}
+
+	@Range(min = 1, max = 20)
+	@ConfigItem(
+		keyName = "dreadnothJumpTicks",
+		name = "Jump ticks",
+		description = "Ticks from Dreadnoth jumping until he lands",
+		position = 6,
+		section = dreadnothSection
+	)
+	default int dreadnothJumpTicks()
+	{
+		return 4;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "dreadnothJumpColor",
+		name = "Jump color",
+		description = "Color of the jump counter",
+		position = 7,
+		section = dreadnothSection
+	)
+	default Color dreadnothJumpColor()
+	{
+		return Color.ORANGE;
 	}
 
 	// Each encounter's settings go in its section above, for example:

@@ -7,14 +7,18 @@ import net.runelite.api.Client;
 import net.runelite.api.NPC;
 import net.runelite.api.WorldView;
 import net.runelite.api.events.AnimationChanged;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.GraphicsObjectCreated;
+import net.runelite.api.events.GroundObjectDespawned;
+import net.runelite.api.events.GroundObjectSpawned;
 import net.runelite.api.events.NpcChanged;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
+import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ProjectileMoved;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.events.ConfigChanged;
@@ -153,6 +157,14 @@ public abstract class Encounter
 	{
 	}
 
+	public void onGroundObjectSpawned(GroundObjectSpawned event)
+	{
+	}
+
+	public void onGroundObjectDespawned(GroundObjectDespawned event)
+	{
+	}
+
 	public void onVarbitChanged(VarbitChanged event)
 	{
 	}
@@ -162,6 +174,14 @@ public abstract class Encounter
 	}
 
 	public void onConfigChanged(ConfigChanged event)
+	{
+	}
+
+	public void onOverheadTextChanged(OverheadTextChanged event)
+	{
+	}
+
+	public void onChatMessage(ChatMessage event)
 	{
 	}
 }

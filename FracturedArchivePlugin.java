@@ -5,14 +5,18 @@ import java.util.List;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.events.AnimationChanged;
+import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.GraphicsObjectCreated;
+import net.runelite.api.events.GroundObjectDespawned;
+import net.runelite.api.events.GroundObjectSpawned;
 import net.runelite.api.events.NpcChanged;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
+import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ProjectileMoved;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.client.config.ConfigManager;
@@ -156,6 +160,18 @@ public class FracturedArchivePlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onGroundObjectSpawned(GroundObjectSpawned event)
+	{
+		encounters.forEach(e -> e.onGroundObjectSpawned(event));
+	}
+
+	@Subscribe
+	public void onGroundObjectDespawned(GroundObjectDespawned event)
+	{
+		encounters.forEach(e -> e.onGroundObjectDespawned(event));
+	}
+
+	@Subscribe
 	public void onVarbitChanged(VarbitChanged event)
 	{
 		encounters.forEach(e -> e.onVarbitChanged(event));
@@ -165,6 +181,18 @@ public class FracturedArchivePlugin extends Plugin
 	public void onGameStateChanged(GameStateChanged event)
 	{
 		encounters.forEach(e -> e.onGameStateChanged(event));
+	}
+
+	@Subscribe
+	public void onOverheadTextChanged(OverheadTextChanged event)
+	{
+		encounters.forEach(e -> e.onOverheadTextChanged(event));
+	}
+
+	@Subscribe
+	public void onChatMessage(ChatMessage event)
+	{
+		encounters.forEach(e -> e.onChatMessage(event));
 	}
 
 	@Subscribe

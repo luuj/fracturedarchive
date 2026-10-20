@@ -47,9 +47,10 @@ public class ArchiveGuardian extends Encounter
 	 */
 	private final Map<Integer, Integer> attackTicks = Map.of(
 		AnimationID.NPC_ARCHIVE_GUARDIAN_RANGE_ATTACK01, 5,
-		AnimationID.NPC_ARCHIVE_GUARDIAN_SPECIAL_ATTACK01, 5,
+		// The special's length comes from the "Special ticks" setting (see startCounter)
+		AnimationID.NPC_ARCHIVE_GUARDIAN_SPECIAL_ATTACK01, 0,
 		// Despite its name, this is the animation the special attack actually plays in game
-		AnimationID.NPC_ARCHIVE_GUARDIAN_ENRAGED_PHASE01, 5,
+		AnimationID.NPC_ARCHIVE_GUARDIAN_ENRAGED_PHASE01, 0,
 		AnimationID.NPC_ARCHIVE_GUARDIAN_IDLE_TO_GROUND01, 40
 	);
 
@@ -60,10 +61,19 @@ public class ArchiveGuardian extends Encounter
 		AnimationID.NPC_ARCHIVE_GUARDIAN_IDLE_TO_GROUND01, config::guardianGroundColor
 	);
 
+	/**
+	 * The beam and the mushroom attack share one animation. If mushrooms spawn within this many
+	 * ticks of it, the counter switches to the mushroom attack.
+	 */
+	private static final int MUSHROOM_ATTACK_WINDOW = 2;
+
 	/** The Guardian the counter is drawn on, and its ticks remaining (0 = no counter). */
 	private NPC counterNpc;
 	private int ticksRemaining;
 	private int counterAnimation = -1;
+	/** Tick the special started, and whether it has turned out to be the mushroom attack. */
+	private int specialStartTick = -1;
+	private boolean mushroomAttack;
 
 	/** Mushrooms currently up, by tile, so a state change on the same tile replaces the old one. */
 	private final Map<WorldPoint, GameObject> mushrooms = new HashMap<>();
@@ -109,6 +119,11 @@ public class ArchiveGuardian extends Encounter
 
 	Color getCounterColor()
 	{
+		if (mushroomAttack)
+		{
+			return config.guardianMushroomAttackColor();
+		}
+
 		Supplier<Color> color = attackColors.get(counterAnimation);
 		return color != null ? color.get() : Color.WHITE;
 	}
@@ -153,10 +168,37 @@ public class ArchiveGuardian extends Encounter
 			return;
 		}
 
+		boolean special = animation == AnimationID.NPC_ARCHIVE_GUARDIAN_SPECIAL_ATTACK01
+			|| animation == AnimationID.NPC_ARCHIVE_GUARDIAN_ENRAGED_PHASE01;
+		// Starts as the beam; switches to the mushroom attack if mushrooms appear (see onGameObjectSpawned)
+		mushroomAttack = false;
+		specialStartTick = special ? client.getTickCount() : -1;
+		if (special)
+		{
+			ticks = config.guardianSpecialTicks();
+		}
+
 		// +1 and counted down each tick, the same as Boss Ticks, so your timings carry over
 		counterNpc = npc;
 		counterAnimation = animation;
 		ticksRemaining = ticks + 1;
+	}
+
+	/** Mushrooms just after the special mean it was the mushroom attack, not the beam. */
+	private void checkMushroomAttack()
+	{
+		if (mushroomAttack || specialStartTick < 0 || ticksRemaining <= 0)
+		{
+			return;
+		}
+
+		int elapsed = client.getTickCount() - specialStartTick;
+		if (elapsed <= MUSHROOM_ATTACK_WINDOW)
+		{
+			mushroomAttack = true;
+			// Same +1 counting as the other counters, less the ticks already gone
+			ticksRemaining = Math.max(1, config.guardianMushroomAttackTicks() + 1 - elapsed);
+		}
 	}
 
 	private void clearCounter()
@@ -164,6 +206,8 @@ public class ArchiveGuardian extends Encounter
 		counterNpc = null;
 		ticksRemaining = 0;
 		counterAnimation = -1;
+		specialStartTick = -1;
+		mushroomAttack = false;
 	}
 
 	Collection<GameObject> getMushrooms()
@@ -182,6 +226,7 @@ public class ArchiveGuardian extends Encounter
 		if (DANGEROUS_MUSHROOMS.contains(object.getId()))
 		{
 			mushrooms.put(tile, object);
+			checkMushroomAttack();
 		}
 		else if (object.getId() == ObjectID.TFA_GUARDIAN_MUSHROOM_DESPAWN)
 		{

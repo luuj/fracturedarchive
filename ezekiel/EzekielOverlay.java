@@ -1,20 +1,25 @@
 package net.runelite.client.plugins.fracturedarchive.ezekiel;
 
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.geom.Area;
 import java.util.Map;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.CollisionData;
 import net.runelite.api.CollisionDataFlag;
+import net.runelite.api.GraphicsObject;
 import net.runelite.api.Constants;
 import net.runelite.api.NPC;
 import net.runelite.api.NPCComposition;
 import net.runelite.api.Perspective;
+import net.runelite.api.Point;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.gameval.SpotanimID;
 import net.runelite.client.plugins.fracturedarchive.EncounterOverlay;
 import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
 
@@ -24,6 +29,19 @@ public class EzekielOverlay extends EncounterOverlay
 	/** Longest lane drawn, in tiles, in case a sword's path never hits a wall. */
 	private static final int MAX_LANE_LENGTH = 30;
 	private static final int BLOCKED = CollisionDataFlag.BLOCK_MOVEMENT_FULL;
+
+	/** The special's star: the crack, then the marker, before it explodes. */
+	private static final Set<Integer> STAR_GRAPHICS = Set.of(
+		SpotanimID.EZEKIEL_SPECIAL_CRACK_VFX01,
+		SpotanimID.VFX_EZEKIEL_STAR_EXPLOSION_SPAWN01,
+		SpotanimID.VFX_EZEKIEL_STAR_EXPLOSION_MARKER01);
+
+	/** Finale swords' warnings before they drop. Not confirmed in game yet. */
+	private static final Set<Integer> FINALE_TELEGRAPHS = Set.of(
+		SpotanimID.VFX_EZEKIEL_SWORD_TELEGRAPH01,
+		SpotanimID.VFX_EZEKIEL_SWORD_TELEGRAPH02,
+		SpotanimID.VFX_EZEKIEL_SWORD_TELEGRAPH03,
+		SpotanimID.VFX_EZEKIEL_SWORD_TELEGRAPH04);
 
 	@Inject
 	private Ezekiel encounter;
@@ -37,24 +55,73 @@ public class EzekielOverlay extends EncounterOverlay
 	@Override
 	protected void renderEncounter(Graphics2D graphics)
 	{
-		if (config.ezekielSwordLanes())
-		{
-			WorldView wv = client.getTopLevelWorldView();
-			if (wv != null)
-			{
-				for (Map.Entry<NPC, Ezekiel.SwordTrack> entry : encounter.getSwords().entrySet())
-				{
-					renderLane(graphics, wv, entry.getKey(), entry.getValue());
-				}
-			}
-		}
-
-		if (!encounter.isActive())
+		WorldView wv = client.getTopLevelWorldView();
+		if (wv == null)
 		{
 			return;
 		}
 
-		// Other Ezekiel overlays go here.
+		for (Map.Entry<NPC, Ezekiel.SwordTrack> entry : encounter.getSwords().entrySet())
+		{
+			NPC sword = entry.getKey();
+			Ezekiel.SwordTrack track = entry.getValue();
+			int ticks = encounter.ticksUntilLaunch(track);
+			if (ticks <= 0)
+			{
+				// Already gone off
+				continue;
+			}
+
+			boolean showLane = ticks <= config.ezekielLaneTicks();
+			if (config.ezekielSwordLanes() && showLane && track.hasDirection())
+			{
+				renderLane(graphics, wv, sword, track);
+			}
+
+			if (config.ezekielSwordTimer())
+			{
+				String text = Integer.toString(ticks);
+				Point point = sword.getCanvasTextLocation(graphics, text, config.textZ());
+				renderText(graphics, point, text, showLane ? config.ezekielSwordBorder() : Color.WHITE);
+			}
+		}
+
+		if (config.ezekielStarCracks() || config.ezekielFinale())
+		{
+			for (GraphicsObject g : wv.getGraphicsObjects())
+			{
+				int id = g.getId();
+				if (config.ezekielStarCracks() && STAR_GRAPHICS.contains(id))
+				{
+					renderPoly(graphics, Perspective.getCanvasTilePoly(client, g.getLocation()),
+						config.ezekielStarBorder(), config.ezekielStarFill(), config.borderWidth());
+				}
+				else if (config.ezekielFinale() && FINALE_TELEGRAPHS.contains(id))
+				{
+					Color c = config.ezekielFinaleColor();
+					renderPoly(graphics, Perspective.getCanvasTilePoly(client, g.getLocation()),
+						c, new Color(c.getRed(), c.getGreen(), c.getBlue(), 50), config.borderWidth());
+				}
+			}
+		}
+
+		NPC ezekiel = encounter.getBoss();
+		if (ezekiel == null)
+		{
+			return;
+		}
+
+		int finaleTicks = encounter.getFinaleTicks();
+		if (config.ezekielFinale() && finaleTicks >= 0)
+		{
+			String text = "Finale " + finaleTicks;
+			renderText(graphics, ezekiel.getCanvasTextLocation(graphics, text, config.textZ()), text, config.ezekielFinaleColor());
+		}
+		else if (config.ezekielAttackCounter() && encounter.getAttackTicks() > 0)
+		{
+			String text = Integer.toString(encounter.getAttackTicks());
+			renderText(graphics, ezekiel.getCanvasTextLocation(graphics, text, config.textZ()), text, encounter.getAttackColor());
+		}
 	}
 
 	private void renderLane(Graphics2D graphics, WorldView wv, NPC sword, Ezekiel.SwordTrack track)
@@ -65,23 +132,8 @@ public class EzekielOverlay extends EncounterOverlay
 			return;
 		}
 
-		int dx;
-		int dy;
-		if (track.hasMoved())
-		{
-			dx = track.getDx();
-			dy = track.getDy();
-		}
-		else
-		{
-			int[] dir = facing(sword.getOrientation());
-			dx = dir[0];
-			dy = dir[1];
-		}
-		if (dx == 0 && dy == 0)
-		{
-			return;
-		}
+		int dx = track.getDx();
+		int dy = track.getDy();
 
 		NPCComposition composition = sword.getTransformedComposition();
 		int size = composition != null ? Math.max(1, composition.getSize()) : 1;
@@ -136,23 +188,5 @@ public class EzekielOverlay extends EncounterOverlay
 	private static boolean isBlocked(int[][] flags, LocalPoint lp)
 	{
 		return !isOutsideScene(lp) && flags != null && (flags[lp.getSceneX()][lp.getSceneY()] & BLOCKED) != 0;
-	}
-
-	/**
-	 * Turns an orientation (0 = south, 512 = west, 1024 = north, 1536 = east) into a step of
-	 * -1, 0 or 1 on each axis, snapped to the nearest of the 8 directions.
-	 */
-	private static int[] facing(int orientation)
-	{
-		double angle = 2 * Math.PI * orientation / 2048.0;
-		double x = -Math.sin(angle);
-		double y = -Math.cos(angle);
-		final double threshold = Math.sin(Math.PI / 8); // 22.5 degrees
-		return new int[]{snap(x, threshold), snap(y, threshold)};
-	}
-
-	private static int snap(double v, double threshold)
-	{
-		return v > threshold ? 1 : v < -threshold ? -1 : 0;
 	}
 }
