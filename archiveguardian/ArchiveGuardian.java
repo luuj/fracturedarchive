@@ -47,7 +47,7 @@ public class ArchiveGuardian extends Encounter
 	 */
 	private final Map<Integer, Integer> attackTicks = Map.of(
 		AnimationID.NPC_ARCHIVE_GUARDIAN_RANGE_ATTACK01, 5,
-		// The special's length comes from the "Special ticks" setting (see startCounter)
+		// The special's length is BEAM_TICKS or MUSHROOM_ATTACK_TICKS (see startCounter)
 		AnimationID.NPC_ARCHIVE_GUARDIAN_SPECIAL_ATTACK01, 0,
 		// Despite its name, this is the animation the special attack actually plays in game
 		AnimationID.NPC_ARCHIVE_GUARDIAN_ENRAGED_PHASE01, 0,
@@ -66,6 +66,10 @@ public class ArchiveGuardian extends Encounter
 	 * ticks of it, the counter switches to the mushroom attack.
 	 */
 	private static final int MUSHROOM_ATTACK_WINDOW = 2;
+
+	/** Ticks from the special animation until the beam or the mushroom attack hits. */
+	private static final int BEAM_TICKS = 10;
+	private static final int MUSHROOM_ATTACK_TICKS = 5;
 
 	/** The Guardian the counter is drawn on, and its ticks remaining (0 = no counter). */
 	private NPC counterNpc;
@@ -175,7 +179,7 @@ public class ArchiveGuardian extends Encounter
 		specialStartTick = special ? client.getTickCount() : -1;
 		if (special)
 		{
-			ticks = config.guardianSpecialTicks();
+			ticks = BEAM_TICKS;
 		}
 
 		// +1 and counted down each tick, the same as Boss Ticks, so your timings carry over
@@ -197,7 +201,7 @@ public class ArchiveGuardian extends Encounter
 		{
 			mushroomAttack = true;
 			// Same +1 counting as the other counters, less the ticks already gone
-			ticksRemaining = Math.max(1, config.guardianMushroomAttackTicks() + 1 - elapsed);
+			ticksRemaining = Math.max(1, MUSHROOM_ATTACK_TICKS + 1 - elapsed);
 		}
 	}
 

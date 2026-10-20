@@ -7,12 +7,14 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import net.runelite.api.Actor;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.GameState;
 import net.runelite.api.GraphicsObject;
-import net.runelite.api.Actor;
 import net.runelite.api.NPC;
+import net.runelite.api.Player;
 import net.runelite.api.Projectile;
+import net.runelite.api.WorldView;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
@@ -28,6 +30,7 @@ import net.runelite.api.gameval.SpotanimID;
 import net.runelite.client.plugins.fracturedarchive.Encounter;
 import net.runelite.client.plugins.fracturedarchive.EncounterOverlay;
 import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
+import net.runelite.client.util.Text;
 
 /**
  * Bork. Second encounter, paired with Ezekiel. Bork fights with the Smorks.
@@ -65,6 +68,12 @@ public class Bork extends Encounter
 
 	/** Ticks taken off Bork's attack speed by the Smorks shouting "faster" this fight. */
 	private int speedUps;
+
+	/** The player Bork last called out in chat, or null. */
+	private Player calledTarget;
+
+	/** Ticks between belly drums: 8 at the start, then 7, 5 and 4 after each "faster" from the Smorks. */
+	private static final int[] ATTACK_SPEEDS = {8, 7, 5, 4};
 	private int lastSpeedUpTick = -1;
 
 	/** Bork after a belly drum, and the ticks until the next one (0 = no counter). */
@@ -74,6 +83,9 @@ public class Bork extends Encounter
 	/** Bork while stunned, and the ticks left (0 = not stunned). */
 	private NPC stunnedBork;
 	private int stunTicks;
+
+	/** How long the cannon stuns Bork. */
+	private static final int STUN_TICKS = 16;
 
 	// Smork projectiles and the fire left on the ground
 	private static final int SMORK_MAGIC_SHOT = SpotanimID.VFX_SMORK_MAGE_ATTACK_PROJANIM01;
@@ -98,6 +110,12 @@ public class Bork extends Encounter
 
 	/** Normal shots each Smork has fired since its last bomb. */
 	private final Map<NPC, Integer> smorkShots = new HashMap<>();
+
+	/**
+	 * The player each Smork has picked for its next fire bomb. Kept until that Smork fires the
+	 * bomb, even if it stops attacking them in between.
+	 */
+	private final Map<NPC, Player> smorkTargets = new HashMap<>();
 
 	@Inject
 	private BorkOverlay overlay;
@@ -127,17 +145,19 @@ public class Bork extends Encounter
 		smorkShots.clear();
 		smorkStyles.clear();
 		fireBombs.clear();
+		smorkTargets.clear();
 		fires.clear();
 		clearStun();
 		clearAttack();
 		speedUps = 0;
+		calledTarget = null;
 		lastSpeedUpTick = -1;
 	}
 
 	/** Bork's current ticks between belly drums. */
 	int getAttackSpeed()
 	{
-		return Math.max(1, config.borkAttackTicks() - speedUps);
+		return ATTACK_SPEEDS[Math.min(speedUps, ATTACK_SPEEDS.length - 1)];
 	}
 
 	NPC getAttackingBork()
@@ -198,6 +218,13 @@ public class Bork extends Encounter
 		super.onNpcDespawned(event);
 		smorkShots.remove(event.getNpc());
 		smorkStyles.remove(event.getNpc());
+		smorkTargets.remove(event.getNpc());
+	}
+
+	/** Each Smork's picked target, until its fire bomb comes out. */
+	public Map<NPC, Player> getSmorkTargets()
+	{
+		return Collections.unmodifiableMap(smorkTargets);
 	}
 
 	@Override
@@ -219,7 +246,7 @@ public class Bork extends Encounter
 				if (stunTicks == 0)
 				{
 					stunnedBork = npc;
-					stunTicks = config.borkStunTicks();
+					stunTicks = STUN_TICKS;
 				}
 			}
 			else if (ATTACK_ANIMATIONS.contains(animation))
@@ -264,6 +291,10 @@ public class Bork extends Encounter
 		{
 			checkSpeedUp(event.getOverheadText());
 		}
+		if (actor instanceof NPC && ((NPC) actor).getId() == NpcID.TFA_BORK)
+		{
+			checkCalledTarget(event.getOverheadText());
+		}
 	}
 
 	@Override
@@ -277,7 +308,55 @@ public class Bork extends Encounter
 			{
 				checkSpeedUp(event.getMessage());
 			}
+			// Bork himself, not a Smork
+			String lower = name == null ? "" : Text.removeTags(name).toLowerCase();
+			if (lower.contains("bork") && !lower.contains("smork"))
+			{
+				checkCalledTarget(event.getMessage());
+			}
 		}
+	}
+
+	/** Bork names who he's going for; pick out whichever player in the area he named. */
+	private void checkCalledTarget(String text)
+	{
+		WorldView wv = client.getTopLevelWorldView();
+		if (text == null || wv == null)
+		{
+			return;
+		}
+
+		String said = Text.standardize(Text.removeTags(text));
+		Player best = null;
+		for (Player player : wv.players())
+		{
+			String name = player.getName();
+			if (name == null)
+			{
+				continue;
+			}
+			String standardized = Text.standardize(name);
+			// Longest match wins, so "Bob" doesn't beat "Bob the Great"
+			if (!standardized.isEmpty() && said.contains(standardized)
+				&& (best == null || standardized.length() > Text.standardize(best.getName()).length()))
+			{
+				best = player;
+			}
+		}
+		if (best != null)
+		{
+			calledTarget = best;
+		}
+	}
+
+	@Override
+	public Player getTarget()
+	{
+		if (calledTarget != null && isActive())
+		{
+			return calledTarget;
+		}
+		return super.getTarget();
 	}
 
 	private void checkSpeedUp(String text)
@@ -298,7 +377,12 @@ public class Bork extends Encounter
 
 		if (id == SMORK_FIRE_BOMB)
 		{
-			fireBombs.add(projectile);
+			// The bomb is out: that Smork's pick is done. Only on the bomb's first move, so the
+			// Smork's next pick isn't cleared while this bomb is still in the air.
+			if (fireBombs.add(projectile) && projectile.getSourceActor() instanceof NPC)
+			{
+				smorkTargets.remove((NPC) projectile.getSourceActor());
+			}
 		}
 		else if ((id == SMORK_MAGIC_SHOT || id == SMORK_RANGED_SHOT) && projectile.getSourceActor() instanceof NPC)
 		{
@@ -306,6 +390,11 @@ public class Bork extends Encounter
 			if (source.getId() == NpcID.TFA_SMORK)
 			{
 				smorkStyles.put(source, id == SMORK_MAGIC_SHOT ? ShotStyle.MAGIC : ShotStyle.RANGED);
+				// The player it's shooting at, if it hasn't picked one yet
+				if (projectile.getTargetActor() instanceof Player)
+				{
+					smorkTargets.putIfAbsent(source, (Player) projectile.getTargetActor());
+				}
 			}
 		}
 	}
@@ -325,6 +414,20 @@ public class Bork extends Encounter
 		// Bombs that have landed, and fire that has burnt out
 		fireBombs.removeIf(p -> p.getRemainingCycles() <= 0);
 		fires.removeIf(GraphicsObject::finished);
+
+		// A Smork that's attacking someone picks them, if it hasn't picked anyone yet
+		WorldView wv = client.getTopLevelWorldView();
+		if (wv != null)
+		{
+			for (NPC npc : wv.npcs())
+			{
+				if (npc.getId() == NpcID.TFA_SMORK && !npc.isDead() && npc.getInteracting() instanceof Player)
+				{
+					smorkTargets.putIfAbsent(npc, (Player) npc.getInteracting());
+				}
+			}
+		}
+		smorkTargets.keySet().removeIf(NPC::isDead);
 
 		if (stunTicks > 0 && --stunTicks == 0)
 		{

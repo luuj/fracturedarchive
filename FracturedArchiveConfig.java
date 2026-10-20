@@ -20,6 +20,14 @@ public interface FracturedArchiveConfig extends Config
 	String generalSection = "generalSection";
 
 	@ConfigSection(
+		name = "Boss targets",
+		description = "Highlight the true tile of the player each boss (and each Smork) is going after",
+		position = 0,
+		closedByDefault = true
+	)
+	String targetSection = "targetSection";
+
+	@ConfigSection(
 		name = "Archive Guardian",
 		description = "Always the first encounter",
 		position = 1,
@@ -121,6 +129,46 @@ public interface FracturedArchiveConfig extends Config
 		return 1;
 	}
 
+	// Boss targets
+
+	@ConfigItem(
+		keyName = "highlightTargets",
+		name = "Highlight targets",
+		description = "Highlight the true tile of the player each boss is going after",
+		position = 0,
+		section = targetSection
+	)
+	default boolean highlightTargets()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "targetColor",
+		name = "Boss target color",
+		description = "Tile color of the player a boss is going after",
+		position = 1,
+		section = targetSection
+	)
+	default Color targetColor()
+	{
+		return Color.RED;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "smorkTargetColor",
+		name = "Smork target color",
+		description = "Tile color of the player each Smork has picked for its fire bomb, until the bomb comes out",
+		position = 2,
+		section = targetSection
+	)
+	default Color smorkTargetColor()
+	{
+		return Color.BLUE;
+	}
+
 	// Archive Guardian
 
 	@ConfigItem(
@@ -161,19 +209,6 @@ public interface FracturedArchiveConfig extends Config
 		return Color.YELLOW;
 	}
 
-	@Range(min = 1, max = 20)
-	@ConfigItem(
-		keyName = "guardianSpecialTicks",
-		name = "Beam ticks",
-		description = "Ticks from the special animation until the beam hits",
-		position = 15,
-		section = archiveguardianSection
-	)
-	default int guardianSpecialTicks()
-	{
-		return 8;
-	}
-
 	@Alpha
 	@ConfigItem(
 		keyName = "guardianMushroomAttackColor",
@@ -185,19 +220,6 @@ public interface FracturedArchiveConfig extends Config
 	default Color guardianMushroomAttackColor()
 	{
 		return Color.MAGENTA;
-	}
-
-	@Range(min = 1, max = 20)
-	@ConfigItem(
-		keyName = "guardianMushroomAttackTicks",
-		name = "Mushroom attack ticks",
-		description = "Ticks from the special animation until the mushroom attack hits",
-		position = 17,
-		section = archiveguardianSection
-	)
-	default int guardianMushroomAttackTicks()
-	{
-		return 8;
 	}
 
 	@Alpha
@@ -265,19 +287,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Range(min = 1, max = 20)
-	@ConfigItem(
-		keyName = "smorkAttacksPerBomb",
-		name = "Shots per bomb",
-		description = "How many normal shots a Smork fires before a bomb. The count turns red when it reaches this",
-		position = 1,
-		section = borkSection
-	)
-	default int smorkAttacksPerBomb()
-	{
-		return 6;
-	}
-
 	@ConfigItem(
 		keyName = "borkStunCounter",
 		name = "Stun counter",
@@ -288,19 +297,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean borkStunCounter()
 	{
 		return true;
-	}
-
-	@Range(min = 1, max = 30)
-	@ConfigItem(
-		keyName = "borkStunTicks",
-		name = "Stun length",
-		description = "How many ticks Bork stays stunned",
-		position = 3,
-		section = borkSection
-	)
-	default int borkStunTicks()
-	{
-		return 12;
 	}
 
 	@Alpha
@@ -326,19 +322,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean borkAttackCounter()
 	{
 		return true;
-	}
-
-	@Range(min = 1, max = 10)
-	@ConfigItem(
-		keyName = "borkAttackTicks",
-		name = "Starting attack speed",
-		description = "Ticks between Bork's belly drum attacks at the start. Each \"faster\" shout from the Smorks takes off 1 tick",
-		position = 6,
-		section = borkSection
-	)
-	default int borkAttackTicks()
-	{
-		return 4;
 	}
 
 	@Alpha
@@ -402,19 +385,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean smorkFireBombs()
 	{
 		return true;
-	}
-
-	@Range(min = 1, max = 7)
-	@ConfigItem(
-		keyName = "smorkFireSize",
-		name = "Fire area size",
-		description = "Width of the marked area in tiles (1 = just the tile, 3 = 3x3)",
-		position = 12,
-		section = borkSection
-	)
-	default int smorkFireSize()
-	{
-		return 1;
 	}
 
 	@Alpha
@@ -723,6 +693,18 @@ public interface FracturedArchiveConfig extends Config
 	default Color dreadnothIncomingColor()
 	{
 		return new Color(255, 120, 0, 220);
+	}
+
+	@ConfigItem(
+		keyName = "dreadnothIncomingTicks",
+		name = "Incoming splatter ticks",
+		description = "Count down the ticks on the tile until each ranged blob lands",
+		position = 8,
+		section = dreadnothSection
+	)
+	default boolean dreadnothIncomingTicks()
+	{
+		return true;
 	}
 
 	@ConfigItem(

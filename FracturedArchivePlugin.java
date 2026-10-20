@@ -24,6 +24,7 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.plugins.fracturedarchive.archiveguardian.ArchiveGuardian;
 import net.runelite.client.plugins.fracturedarchive.bork.Bork;
 import net.runelite.client.plugins.fracturedarchive.dagonhaitrio.DagonhaiTrio;
@@ -43,6 +44,12 @@ import net.runelite.client.plugins.fracturedarchive.xarth.Xarth;
 public class FracturedArchivePlugin extends Plugin
 {
 	static final String CONFIG_GROUP = "fracturedarchive";
+
+	@Inject
+	private OverlayManager overlayManager;
+
+	@Inject
+	private TargetOverlay targetOverlay;
 
 	@Inject
 	private ArchiveGuardian archiveGuardian;
@@ -90,11 +97,13 @@ public class FracturedArchivePlugin extends Plugin
 		}
 
 		encounters.forEach(Encounter::load);
+		overlayManager.add(targetOverlay);
 	}
 
 	@Override
 	protected void shutDown()
 	{
+		overlayManager.remove(targetOverlay);
 		if (encounters != null)
 		{
 			encounters.forEach(Encounter::unload);

@@ -112,9 +112,10 @@ public class Dreadnoth extends Encounter
 		return Collections.unmodifiableCollection(splatter.values());
 	}
 
-	Collection<LocalPoint> getIncoming()
+	/** Blobs in the air, each with where it will land. */
+	Map<Projectile, LocalPoint> getIncoming()
 	{
-		return Collections.unmodifiableCollection(incoming.values());
+		return Collections.unmodifiableMap(incoming);
 	}
 
 	// Splatter can be either kind of object, so watch both.

@@ -2,9 +2,11 @@ package net.runelite.client.plugins.fracturedarchive.dreadnoth;
 
 import java.awt.Graphics2D;
 import java.awt.Polygon;
+import java.util.Map;
 import net.runelite.api.GameObject;
 import net.runelite.api.NPC;
 import net.runelite.api.Perspective;
+import net.runelite.api.Projectile;
 import net.runelite.api.TileObject;
 import net.runelite.api.coords.LocalPoint;
 import javax.inject.Inject;
@@ -15,6 +17,8 @@ import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
 @Singleton
 public class DreadnothOverlay extends EncounterOverlay
 {
+	private static final int CYCLES_PER_TICK = 30;
+
 	@Inject
 	private Dreadnoth encounter;
 
@@ -55,9 +59,18 @@ public class DreadnothOverlay extends EncounterOverlay
 
 		if (config.dreadnothIncoming())
 		{
-			for (LocalPoint target : encounter.getIncoming())
+			for (Map.Entry<Projectile, LocalPoint> entry : encounter.getIncoming().entrySet())
 			{
+				LocalPoint target = entry.getValue();
 				renderPoly(graphics, Perspective.getCanvasTilePoly(client, target), config.dreadnothIncomingColor(), null, config.borderWidth());
+
+				int cycles = entry.getKey().getRemainingCycles();
+				if (config.dreadnothIncomingTicks() && cycles > 0)
+				{
+					// 30 client cycles (20 ms each) per game tick, rounded up
+					String text = Integer.toString((cycles + CYCLES_PER_TICK - 1) / CYCLES_PER_TICK);
+					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, target, text, 0), text, config.dreadnothIncomingColor());
+				}
 			}
 		}
 	}

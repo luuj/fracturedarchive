@@ -5,6 +5,7 @@ import javax.inject.Inject;
 import lombok.Getter;
 import net.runelite.api.Client;
 import net.runelite.api.NPC;
+import net.runelite.api.Player;
 import net.runelite.api.WorldView;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
@@ -88,6 +89,16 @@ public abstract class Encounter
 	public boolean isActive()
 	{
 		return boss != null;
+	}
+
+	/** The player the boss is going after: by default whoever it's attacking. */
+	public Player getTarget()
+	{
+		if (boss != null && !boss.isDead() && boss.getInteracting() instanceof Player)
+		{
+			return (Player) boss.getInteracting();
+		}
+		return null;
 	}
 
 	protected boolean inRegion(int regionId)
