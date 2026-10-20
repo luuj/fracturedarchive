@@ -494,26 +494,13 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "ezekielAttackCounter",
 		name = "Attack counter",
-		description = "Count the ticks above Ezekiel after his melee, magic and special attacks",
+		description = "Count the 5 ticks above Ezekiel after his melee, magic and special attacks",
 		position = 6,
 		section = ezekielSection
 	)
 	default boolean ezekielAttackCounter()
 	{
 		return true;
-	}
-
-	@Range(min = 1, max = 20)
-	@ConfigItem(
-		keyName = "ezekielAttackSpeed",
-		name = "Attack speed",
-		description = "Ticks between Ezekiel's attacks",
-		position = 7,
-		section = ezekielSection
-	)
-	default int ezekielAttackSpeed()
-	{
-		return 4;
 	}
 
 	@Alpha
@@ -596,7 +583,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "ezekielFinale",
 		name = "Finale tracker",
-		description = "Count the ticks since the finale started above Ezekiel, and mark the finale sword telegraphs",
+		description = "Number the dodge row tiles in the order the swords come up safe (the one the lightning misses)",
 		position = 14,
 		section = ezekielSection
 	)
@@ -607,15 +594,27 @@ public interface FracturedArchiveConfig extends Config
 
 	@Alpha
 	@ConfigItem(
-		keyName = "ezekielFinaleColor",
-		name = "Finale color",
-		description = "Color of the finale counter and sword telegraph tiles",
+		keyName = "ezekielFinaleSafeColor",
+		name = "Finale safe color",
+		description = "Color of the safe finale swords and the dodge row",
 		position = 15,
 		section = ezekielSection
 	)
-	default Color ezekielFinaleColor()
+	default Color ezekielFinaleSafeColor()
 	{
-		return Color.MAGENTA;
+		return Color.GREEN;
+	}
+
+	@ConfigItem(
+		keyName = "ezekielFinaleFront",
+		name = "Finale dodge area",
+		description = "During the finale, mark the far row of the 3x3 in front of Ezekiel (where to go) in the safe color",
+		position = 15,
+		section = ezekielSection
+	)
+	default boolean ezekielFinaleFront()
+	{
+		return true;
 	}
 
 	@ConfigItem(
@@ -646,8 +645,8 @@ public interface FracturedArchiveConfig extends Config
 
 	@ConfigItem(
 		keyName = "dreadnothIncoming",
-		name = "Show incoming splatter",
-		description = "Mark where Dreadnoth's ranged blobs will land while they're in the air",
+		name = "Show incoming blood",
+		description = "Mark where Dreadnoth's blood will land while it's in the air",
 		position = 1,
 		section = dreadnothSection
 	)
@@ -686,7 +685,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "dreadnothIncomingColor",
 		name = "Incoming color",
-		description = "Outline color of where a ranged blob will land",
+		description = "Outline color of where his blood will land",
 		position = 4,
 		section = dreadnothSection
 	)
@@ -697,8 +696,8 @@ public interface FracturedArchiveConfig extends Config
 
 	@ConfigItem(
 		keyName = "dreadnothIncomingTicks",
-		name = "Incoming splatter ticks",
-		description = "Count down the ticks on the tile until each ranged blob lands",
+		name = "Incoming blood ticks",
+		description = "Count down the ticks on the tile until his blood lands",
 		position = 8,
 		section = dreadnothSection
 	)
@@ -708,28 +707,40 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "dreadnothRangedProjectiles",
+		name = "Mark ranged projectiles",
+		description = "Show the ticks on Dreadnoth's ranged attack while it's aimed at you, like Projectile Ticks",
+		position = 9,
+		section = dreadnothSection
+	)
+	default boolean dreadnothRangedProjectiles()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "dreadnothRangedColor",
+		name = "Ranged color",
+		description = "Color of the ranged projectile tick count",
+		position = 10,
+		section = dreadnothSection
+	)
+	default Color dreadnothRangedColor()
+	{
+		return Color.GREEN;
+	}
+
+	@ConfigItem(
 		keyName = "dreadnothJumpCounter",
 		name = "Jump counter",
-		description = "Count the ticks above Dreadnoth from when he jumps until he lands",
+		description = "Count the ticks above Dreadnoth from when he jumps until he lands (6, or 4 after he says \"glub glub\")",
 		position = 5,
 		section = dreadnothSection
 	)
 	default boolean dreadnothJumpCounter()
 	{
 		return true;
-	}
-
-	@Range(min = 1, max = 20)
-	@ConfigItem(
-		keyName = "dreadnothJumpTicks",
-		name = "Jump ticks",
-		description = "Ticks from Dreadnoth jumping until he lands",
-		position = 6,
-		section = dreadnothSection
-	)
-	default int dreadnothJumpTicks()
-	{
-		return 4;
 	}
 
 	@Alpha
@@ -743,6 +754,275 @@ public interface FracturedArchiveConfig extends Config
 	default Color dreadnothJumpColor()
 	{
 		return Color.ORANGE;
+	}
+
+	// Xarth
+
+	@ConfigItem(
+		keyName = "xarthAttackCounter",
+		name = "Attack counter",
+		description = "Count the 4 ticks above Xarth after each attack",
+		position = 0,
+		section = xarthSection
+	)
+	default boolean xarthAttackCounter()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "xarthMeleeColor",
+		name = "Melee color",
+		description = "Counter color after a melee attack",
+		position = 1,
+		section = xarthSection
+	)
+	default Color xarthMeleeColor()
+	{
+		return Color.RED;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "xarthMagicColor",
+		name = "Magic color",
+		description = "Counter color after a magic attack",
+		position = 2,
+		section = xarthSection
+	)
+	default Color xarthMagicColor()
+	{
+		return Color.CYAN;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "xarthRangedColor",
+		name = "Ranged color",
+		description = "Counter color after a ranged attack",
+		position = 3,
+		section = xarthSection
+	)
+	default Color xarthRangedColor()
+	{
+		return Color.GREEN;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "xarthSpecialColor",
+		name = "Special color",
+		description = "Counter color after a flame blast, root, AoE or summon",
+		position = 4,
+		section = xarthSection
+	)
+	default Color xarthSpecialColor()
+	{
+		return Color.YELLOW;
+	}
+
+	// Final boss (Ocellus)
+
+	@ConfigItem(
+		keyName = "ocellusAttackCounter",
+		name = "Attack counter",
+		description = "Count the ticks above Ocellus after each attack",
+		position = 0,
+		section = finalbossSection
+	)
+	default boolean ocellusAttackCounter()
+	{
+		return true;
+	}
+
+	@Range(min = 1, max = 20)
+	@ConfigItem(
+		keyName = "ocellusAttackSpeed",
+		name = "Attack speed",
+		description = "Ticks for Ocellus's attacks that aren't confirmed yet (his basic melee, 14842, is always 3)",
+		position = 1,
+		section = finalbossSection
+	)
+	default int ocellusAttackSpeed()
+	{
+		return 5;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusMeleeColor",
+		name = "Melee color",
+		description = "Counter color after a melee attack",
+		position = 2,
+		section = finalbossSection
+	)
+	default Color ocellusMeleeColor()
+	{
+		return Color.RED;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusProjectileColor",
+		name = "Projectile color",
+		description = "Counter color after a projectile attack, and the color of his other projectiles",
+		position = 3,
+		section = finalbossSection
+	)
+	default Color ocellusProjectileColor()
+	{
+		return Color.MAGENTA;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusSpecialColor",
+		name = "Special color",
+		description = "Counter color after a special attack (railgun, charge, unleash, soul fragment and so on)",
+		position = 4,
+		section = finalbossSection
+	)
+	default Color ocellusSpecialColor()
+	{
+		return Color.YELLOW;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusProjectiles",
+		name = "Mark projectiles",
+		description = "Show the ticks until Ocellus's projectiles land: on the projectile if it's aimed at you (like Projectile Ticks), on the landing tile if it's thrown at the ground",
+		position = 5,
+		section = finalbossSection
+	)
+	default boolean ocellusProjectiles()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusWaterColor",
+		name = "Water attack color",
+		description = "Color of his water projectile",
+		position = 6,
+		section = finalbossSection
+	)
+	default Color ocellusWaterColor()
+	{
+		return Color.CYAN;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusFireColor",
+		name = "Fire attack color",
+		description = "Color of his fire projectile",
+		position = 7,
+		section = finalbossSection
+	)
+	default Color ocellusFireColor()
+	{
+		return Color.GREEN;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusGroundMarkers",
+		name = "Ground markers",
+		description = "Mark dangerous floor (charge cracks, explosions, AoEs, bombs, debris, void puddles)",
+		position = 8,
+		section = finalbossSection
+	)
+	default boolean ocellusGroundMarkers()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusDangerColor",
+		name = "Danger color",
+		description = "Color of dangerous floor",
+		position = 9,
+		section = finalbossSection
+	)
+	default Color ocellusDangerColor()
+	{
+		return Color.RED;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusArtifacts",
+		name = "Highlight artifacts",
+		description = "Outline the artifacts (damage, spec, heal) while they can be used",
+		position = 11,
+		section = finalbossSection
+	)
+	default boolean ocellusArtifacts()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusArtifactColor",
+		name = "Artifact color",
+		description = "Outline color of usable artifacts",
+		position = 12,
+		section = finalbossSection
+	)
+	default Color ocellusArtifactColor()
+	{
+		return Color.WHITE;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusPortalCrossing",
+		name = "Portal crossing",
+		description = "Highlight the 2x2 where the orange portals' lines cross, nearest you",
+		position = 13,
+		section = finalbossSection
+	)
+	default boolean ocellusPortalCrossing()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusOrangePortal",
+		name = "Orange portal",
+		description = "Phase 3 only: which portal NPC type is orange (phase 2's orange portals are found automatically)",
+		position = 13,
+		section = finalbossSection
+	)
+	default net.runelite.client.plugins.fracturedarchive.finalboss.FinalBoss.PortalType ocellusOrangePortal()
+	{
+		return net.runelite.client.plugins.fracturedarchive.finalboss.FinalBoss.PortalType.BUFF;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusPortalCrossingColor",
+		name = "Portal crossing color",
+		description = "Color of the portal crossing square",
+		position = 13,
+		section = finalbossSection
+	)
+	default Color ocellusPortalCrossingColor()
+	{
+		return Color.ORANGE;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusDebug",
+		name = "Debug log",
+		description = "Post Ocellus's animations, graphics, projectiles and objects to the chat box with tick numbers, to confirm timings",
+		position = 13,
+		section = finalbossSection
+	)
+	default boolean ocellusDebug()
+	{
+		return false;
 	}
 
 	// Each encounter's settings go in its section above, for example:

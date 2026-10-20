@@ -3,14 +3,15 @@ package net.runelite.client.plugins.fracturedarchive.dreadnoth;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.util.Map;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.GameObject;
 import net.runelite.api.NPC;
 import net.runelite.api.Perspective;
+import net.runelite.api.Point;
 import net.runelite.api.Projectile;
 import net.runelite.api.TileObject;
 import net.runelite.api.coords.LocalPoint;
-import javax.inject.Inject;
-import javax.inject.Singleton;
 import net.runelite.client.plugins.fracturedarchive.EncounterOverlay;
 import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
 
@@ -50,6 +51,14 @@ public class DreadnothOverlay extends EncounterOverlay
 			}
 		}
 
+		if (config.dreadnothRangedProjectiles())
+		{
+			for (Projectile shot : encounter.getRangedShots())
+			{
+				renderShot(graphics, shot);
+			}
+		}
+
 		NPC dreadnoth = encounter.getBoss();
 		if (config.dreadnothJumpCounter() && dreadnoth != null && encounter.getJumpTicks() > 0)
 		{
@@ -72,6 +81,25 @@ public class DreadnothOverlay extends EncounterOverlay
 					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, target, text, 0), text, config.dreadnothIncomingColor());
 				}
 			}
+		}
+	}
+
+	/**
+	 * Like Projectile Ticks: only when it's aimed at you, the ticks until it hits drawn on the
+	 * projectile itself.
+	 */
+	private void renderShot(Graphics2D graphics, Projectile shot)
+	{
+		int cycles = shot.getRemainingCycles();
+		if (cycles <= 0 || shot.getTargetActor() != client.getLocalPlayer())
+		{
+			return;
+		}
+
+		Point p = Perspective.localToCanvas(client, (int) shot.getX(), (int) shot.getY(), (int) shot.getZ());
+		if (p != null)
+		{
+			renderText(graphics, p, Integer.toString(cycles / CYCLES_PER_TICK), config.dreadnothRangedColor());
 		}
 	}
 }

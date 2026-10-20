@@ -72,8 +72,11 @@ public class Bork extends Encounter
 	/** The player Bork last called out in chat, or null. */
 	private Player calledTarget;
 
-	/** Ticks between belly drums: 8 at the start, then 7, 5 and 4 after each "faster" from the Smorks. */
+	/** Ticks between belly drums: 8 at the start, then 7, 5 and 4 after each "faster" from the Smorks or "angry" from Bork. */
 	private static final int[] ATTACK_SPEEDS = {8, 7, 5, 4};
+
+	/** Shouts this close together are the same speed-up. */
+	private static final int SPEED_UP_WINDOW = 3;
 	private int lastSpeedUpTick = -1;
 
 	/** Bork after a belly drum, and the ticks until the next one (0 = no counter). */
@@ -361,8 +364,15 @@ public class Bork extends Encounter
 
 	private void checkSpeedUp(String text)
 	{
-		// Several Smorks can shout at once; count it once per tick
-		if (text != null && text.toLowerCase().contains("faster") && client.getTickCount() != lastSpeedUpTick)
+		// A Smork shouting "faster" or Bork getting "angry" both mean he speeds up. Several can
+		// shout around the same time, so it only counts once within SPEED_UP_WINDOW ticks.
+		if (text == null)
+		{
+			return;
+		}
+		String lower = text.toLowerCase();
+		boolean shout = lower.contains("faster") || lower.contains("angry");
+		if (shout && (lastSpeedUpTick < 0 || client.getTickCount() - lastSpeedUpTick > SPEED_UP_WINDOW))
 		{
 			lastSpeedUpTick = client.getTickCount();
 			speedUps++;

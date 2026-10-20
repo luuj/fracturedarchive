@@ -3,6 +3,7 @@ package net.runelite.client.plugins.fracturedarchive.xarth;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import net.runelite.api.NPC;
 import net.runelite.client.plugins.fracturedarchive.EncounterOverlay;
 import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
 
@@ -21,11 +22,16 @@ public class XarthOverlay extends EncounterOverlay
 	@Override
 	protected void renderEncounter(Graphics2D graphics)
 	{
-		if (!encounter.isActive())
+		NPC xarth = encounter.getBoss();
+		if (xarth == null)
 		{
 			return;
 		}
 
-		// Draw this encounter's overlays here.
+		if (config.xarthAttackCounter() && encounter.getAttackTicks() > 0)
+		{
+			String text = Integer.toString(encounter.getAttackTicks());
+			renderText(graphics, xarth.getCanvasTextLocation(graphics, text, config.textZ()), text, encounter.getAttackColor());
+		}
 	}
 }
