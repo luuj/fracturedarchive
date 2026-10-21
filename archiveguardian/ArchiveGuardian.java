@@ -6,7 +6,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.GameObject;
@@ -54,11 +53,17 @@ public class ArchiveGuardian extends Encounter
 		AnimationID.NPC_ARCHIVE_GUARDIAN_IDLE_TO_GROUND01, 40
 	);
 
-	private final Map<Integer, Supplier<Color>> attackColors = Map.of(
-		AnimationID.NPC_ARCHIVE_GUARDIAN_RANGE_ATTACK01, config::guardianRangedColor,
-		AnimationID.NPC_ARCHIVE_GUARDIAN_SPECIAL_ATTACK01, config::guardianSpecialColor,
-		AnimationID.NPC_ARCHIVE_GUARDIAN_ENRAGED_PHASE01, config::guardianSpecialColor,
-		AnimationID.NPC_ARCHIVE_GUARDIAN_IDLE_TO_GROUND01, config::guardianGroundColor
+	/** Counter colors (the colors you had saved). */
+	private static final Color RANGED_COLOR = Color.GREEN;
+	private static final Color BEAM_COLOR = new Color(255, 115, 0);
+	private static final Color GROUND_COLOR = Color.RED;
+	private static final Color MUSHROOM_ATTACK_COLOR = Color.MAGENTA;
+
+	private final Map<Integer, Color> attackColors = Map.of(
+		AnimationID.NPC_ARCHIVE_GUARDIAN_RANGE_ATTACK01, RANGED_COLOR,
+		AnimationID.NPC_ARCHIVE_GUARDIAN_SPECIAL_ATTACK01, BEAM_COLOR,
+		AnimationID.NPC_ARCHIVE_GUARDIAN_ENRAGED_PHASE01, BEAM_COLOR,
+		AnimationID.NPC_ARCHIVE_GUARDIAN_IDLE_TO_GROUND01, GROUND_COLOR
 	);
 
 	/**
@@ -125,11 +130,11 @@ public class ArchiveGuardian extends Encounter
 	{
 		if (mushroomAttack)
 		{
-			return config.guardianMushroomAttackColor();
+			return MUSHROOM_ATTACK_COLOR;
 		}
 
-		Supplier<Color> color = attackColors.get(counterAnimation);
-		return color != null ? color.get() : Color.WHITE;
+		Color color = attackColors.get(counterAnimation);
+		return color != null ? color : Color.WHITE;
 	}
 
 	@Override

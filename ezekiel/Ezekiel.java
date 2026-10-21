@@ -71,6 +71,11 @@ public class Ezekiel extends Encounter
 	 */
 	private static final int STAR_COUNT_RESET_GAP = 9;
 
+	/** Colors (the colors you had saved). */
+	static final java.awt.Color MELEE_COLOR = java.awt.Color.RED;
+	static final java.awt.Color MAGIC_COLOR = java.awt.Color.CYAN;
+	static final java.awt.Color SPECIAL_COLOR = java.awt.Color.YELLOW;
+
 	/** Ticks between Ezekiel's attacks. */
 	private static final int ATTACK_SPEED = 5;
 
@@ -286,11 +291,11 @@ public class Ezekiel extends Encounter
 		switch (attackAnimation)
 		{
 			case AnimationID.NPC_EZEKIEL_MELEE01:
-				return config.ezekielMeleeColor();
+				return MELEE_COLOR;
 			case AnimationID.NPC_EZEKIEL_MAGIC01:
-				return config.ezekielMagicColor();
+				return MAGIC_COLOR;
 			default:
-				return config.ezekielSpecialColor();
+				return SPECIAL_COLOR;
 		}
 	}
 

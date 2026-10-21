@@ -20,6 +20,13 @@ public class BorkOverlay extends EncounterOverlay
 	/** The bomb comes after 5 or 6 normal shots, so warn from the 5th. */
 	private static final int BOMB_WARNING_SHOTS = 5;
 
+	/** Colors (the colors you had saved). */
+	private static final Color STUN_COLOR = Color.CYAN;
+	private static final Color MAGIC_COLOR = Color.CYAN;
+	private static final Color RANGED_COLOR = Color.GREEN;
+	private static final Color FIRE_BORDER = new Color(255, 100, 0, 200);
+	private static final Color FIRE_FILL = new Color(255, 100, 0, 50);
+
 	@Inject
 	private Bork encounter;
 
@@ -53,7 +60,7 @@ public class BorkOverlay extends EncounterOverlay
 				}
 				else if (config.smorkStyleColors() && style != null)
 				{
-					color = style == Bork.ShotStyle.MAGIC ? config.smorkMagicColor() : config.smorkRangedColor();
+					color = style == Bork.ShotStyle.MAGIC ? MAGIC_COLOR : RANGED_COLOR;
 				}
 				renderText(graphics, smork.getCanvasTextLocation(graphics, text, config.textZ()), text, color);
 			}
@@ -72,7 +79,7 @@ public class BorkOverlay extends EncounterOverlay
 				{
 					// 30 client cycles (20 ms each) per game tick, rounded up
 					String text = Integer.toString((cycles + 29) / 30);
-					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, config.smorkFireBorder());
+					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, FIRE_BORDER);
 				}
 			}
 			for (GraphicsObject fire : encounter.getFires())
@@ -86,7 +93,7 @@ public class BorkOverlay extends EncounterOverlay
 		if (config.borkStunCounter() && bork != null)
 		{
 			String text = Integer.toString(encounter.getStunTicks());
-			renderText(graphics, bork.getCanvasTextLocation(graphics, text, config.textZ()), text, config.borkStunColor());
+			renderText(graphics, bork.getCanvasTextLocation(graphics, text, config.textZ()), text, STUN_COLOR);
 		}
 
 		if (!encounter.isActive())
@@ -102,7 +109,7 @@ public class BorkOverlay extends EncounterOverlay
 		if (center != null)
 		{
 			renderPoly(graphics, Perspective.getCanvasTilePoly(client, center),
-				config.smorkFireBorder(), config.smorkFireFill(), config.borderWidth());
+				FIRE_BORDER, FIRE_FILL, config.borderWidth());
 		}
 	}
 }

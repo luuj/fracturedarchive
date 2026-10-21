@@ -46,18 +46,21 @@ public class FinalBossOverlay extends EncounterOverlay
 		SpotanimID.VFX_OCELLUS_QUADRANT_BOMB_IDLE_01,
 		SpotanimID.VFX_OCELLUS_FALLING_DEBRIS);
 
-	/** Ocellus's projectiles. */
+	/** Ocellus's projectiles (not the portal projectiles fired at the walls in phase 2). */
 	private static final Set<Integer> PROJECTILES = Set.of(
 		SpotanimID.VFX_OCELLUS_WATER_ATTACK01_PROJANIM,
 		SpotanimID.VFX_OCELLUS_FIRE_ATTACK01_PROJANIM,
 		SpotanimID.VFX_OCELLUS_MAGIC_PROJANIM01,
 		SpotanimID.VFX_OCELLUS_MAGIC_PROJANIM02,
 		SpotanimID.VFX_OCELLUS_PHASE1_CHARGE_EXPEND_PROJECTILE,
-		SpotanimID.VFX_OCELLUS_PORTAL_PROJECTILE,
 		SpotanimID.TFA_OCELLUS_SF_PROJ);
 
 	@Inject
 	private FinalBoss encounter;
+
+	/** His phase 1 water and fire projectiles. */
+	private static final Color WATER_COLOR = Color.CYAN;
+	private static final Color FIRE_COLOR = new Color(255, 200, 0);
 
 	/** Void bomb warnings and when each was first seen (they land 2 ticks later). */
 	private static final int BOMB_WARNING_TICKS = 2;
@@ -81,7 +84,7 @@ public class FinalBossOverlay extends EncounterOverlay
 
 		if (config.ocellusGroundMarkers())
 		{
-			Color danger = config.ocellusDangerColor();
+			Color danger = FinalBoss.DANGER_COLOR;
 			Color dangerFill = alpha(danger, 50);
 
 			for (TileObject o : encounter.getDangerObjects())
@@ -116,7 +119,7 @@ public class FinalBossOverlay extends EncounterOverlay
 
 		if (config.ocellusArtifacts())
 		{
-			Color c = config.ocellusArtifactColor();
+			Color c = FinalBoss.ARTIFACT_COLOR;
 			for (GameObject o : encounter.getArtifacts())
 			{
 				renderPoly(graphics, footprint(o), c, alpha(c, 40), config.borderWidth());
@@ -153,17 +156,21 @@ public class FinalBossOverlay extends EncounterOverlay
 		int sweep = encounter.getSweepCount();
 		if (config.ocellusSweepCounter() && ocellus != null && sweep > 0)
 		{
-			// Under him, so it doesn't clash with the attack counter above him
-			String text = Integer.toString(sweep);
-			renderText(graphics, ocellus.getCanvasTextLocation(graphics, text, 0), text,
-				sweep >= 3 ? config.ocellusSpecialColor() : config.ocellusMeleeColor());
+			// Stacked directly under the tick counter (like Theatre), in a smaller font
+			renderStackedText(graphics, ocellus, Integer.toString(sweep), sweep >= 3 ? FinalBoss.SPECIAL_COLOR : FinalBoss.MELEE_COLOR, 14f);
 		}
 
+		int obliteration = encounter.getObliterationTicks();
 		int unleash = encounter.getUnleashTicks();
-		if (config.ocellusUnleashCounter() && ocellus != null && unleash > 0)
+		if (config.ocellusObliterationCounter() && ocellus != null && obliteration > 0)
+		{
+			String text = Integer.toString(obliteration);
+			renderText(graphics, ocellus.getCanvasTextLocation(graphics, text, config.textZ()), text, FinalBoss.OBLITERATION_COLOR);
+		}
+		else if (config.ocellusUnleashCounter() && ocellus != null && unleash > 0)
 		{
 			String text = Integer.toString(unleash);
-			renderText(graphics, ocellus.getCanvasTextLocation(graphics, text, config.textZ()), text, config.ocellusSpecialColor());
+			renderText(graphics, ocellus.getCanvasTextLocation(graphics, text, config.textZ()), text, FinalBoss.SPECIAL_COLOR);
 		}
 		else if (config.ocellusAttackCounter() && ocellus != null && encounter.getAttackTicks() > 0)
 		{
@@ -179,9 +186,9 @@ public class FinalBossOverlay extends EncounterOverlay
 	 */
 	private void renderProjectile(Graphics2D graphics, Projectile p)
 	{
-		Color c = p.getId() == SpotanimID.VFX_OCELLUS_WATER_ATTACK01_PROJANIM ? config.ocellusWaterColor()
-			: p.getId() == SpotanimID.VFX_OCELLUS_FIRE_ATTACK01_PROJANIM ? config.ocellusFireColor()
-			: config.ocellusProjectileColor();
+		Color c = p.getId() == SpotanimID.VFX_OCELLUS_WATER_ATTACK01_PROJANIM ? WATER_COLOR
+			: p.getId() == SpotanimID.VFX_OCELLUS_FIRE_ATTACK01_PROJANIM ? FIRE_COLOR
+			: FinalBoss.PROJECTILE_COLOR;
 		String ticks = Integer.toString((p.getRemainingCycles() + CYCLES_PER_TICK - 1) / CYCLES_PER_TICK);
 
 		if (p.getTargetActor() == null)
@@ -225,7 +232,7 @@ public class FinalBossOverlay extends EncounterOverlay
 	 */
 	private void renderSoulFragments(Graphics2D graphics, WorldView wv)
 	{
-		Color c = config.ocellusSoulFragmentColor();
+		Color c = FinalBoss.SOUL_FRAGMENT_COLOR;
 		Color fill = alpha(c, 70);
 		java.util.Set<String> seen = new java.util.HashSet<>();
 
@@ -297,13 +304,13 @@ public class FinalBossOverlay extends EncounterOverlay
 			switch (npc.getId())
 			{
 				case net.runelite.api.gameval.NpcID.TFA_OCELLUS_P3_BOMBPORTAL_HEAL:
-					c = config.ocellusSiphonColor();
+					c = FinalBoss.SIPHON_COLOR;
 					break;
 				case net.runelite.api.gameval.NpcID.TFA_OCELLUS_P3_BOMBPORTAL_BUFF:
-					c = config.ocellusAugmenterColor();
+					c = FinalBoss.AUGMENTER_COLOR;
 					break;
 				case net.runelite.api.gameval.NpcID.TFA_OCELLUS_P3_BOMBPORTAL_BASIC:
-					c = config.ocellusRiftColor();
+					c = FinalBoss.RIFT_COLOR;
 					break;
 				case net.runelite.api.gameval.NpcID.TFA_OCELLUS_P3_VOID_VINE:
 					if (config.ocellusVoidVine())
@@ -346,7 +353,7 @@ public class FinalBossOverlay extends EncounterOverlay
 			}
 		}
 
-		Color c = config.ocellusTrappedColor();
+		Color c = FinalBoss.TRAPPED_COLOR;
 		renderTile(graphics, tile, c, alpha(c, 80), config.borderWidth());
 	}
 
@@ -372,6 +379,18 @@ public class FinalBossOverlay extends EncounterOverlay
 	 */
 	private void renderPortalCrossing(Graphics2D graphics)
 	{
+		// The 2x2 where the orange (silent) portals' lanes cross, as soon as the portals fire
+		for (WorldPoint crossing : encounter.getOrangeCrossings())
+		{
+			LocalPoint sw = LocalPoint.fromWorld(client, crossing);
+			if (sw != null)
+			{
+				Color c = FinalBoss.PORTAL_CROSSING_COLOR;
+				LocalPoint middle = sw.plus(Perspective.LOCAL_TILE_SIZE / 2, Perspective.LOCAL_TILE_SIZE / 2);
+				renderPoly(graphics, Perspective.getCanvasTileAreaPoly(client, middle, 2), c, alpha(c, 60), config.borderWidth());
+			}
+		}
+
 		net.runelite.api.Player me = client.getLocalPlayer();
 		WorldView wv = client.getTopLevelWorldView();
 		if (me == null || me.getLocalLocation() == null || wv == null)
@@ -397,7 +416,7 @@ public class FinalBossOverlay extends EncounterOverlay
 
 		if (best != null)
 		{
-			Color c = config.ocellusPortalCrossingColor();
+			Color c = FinalBoss.PORTAL_CROSSING_COLOR;
 			renderPoly(graphics, Perspective.getCanvasTilePoly(client, best), c, alpha(c, 60), config.borderWidth());
 		}
 	}

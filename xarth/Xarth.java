@@ -103,13 +103,13 @@ public class Xarth extends Encounter
 		switch (attackAnimation)
 		{
 			case AnimationID.XARTH_ATTACK_MELEE_01:
-				return config.xarthMeleeColor();
+				return Color.RED;
 			case AnimationID.XARTH_ATTACK_MAGIC_01:
-				return config.xarthMagicColor();
+				return Color.CYAN;
 			case AnimationID.XARTH_ATTACK_RANGED_01:
-				return config.xarthRangedColor();
+				return Color.GREEN;
 			default:
-				return config.xarthSpecialColor();
+				return Color.YELLOW;
 		}
 	}
 }

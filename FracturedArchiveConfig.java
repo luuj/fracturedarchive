@@ -1,7 +1,5 @@
 package net.runelite.client.plugins.fracturedarchive;
 
-import java.awt.Color;
-import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -143,32 +141,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "targetColor",
-		name = "Boss target color",
-		description = "Tile color of the player a boss is going after",
-		position = 1,
-		section = targetSection
-	)
-	default Color targetColor()
-	{
-		return Color.RED;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "smorkTargetColor",
-		name = "Smork target color",
-		description = "Tile color of the player each Smork has picked for its fire bomb, until the bomb comes out",
-		position = 2,
-		section = targetSection
-	)
-	default Color smorkTargetColor()
-	{
-		return Color.BLUE;
-	}
-
 	// Archive Guardian
 
 	@ConfigItem(
@@ -183,58 +155,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "guardianRangedColor",
-		name = "Ranged color",
-		description = "Counter color after a ranged attack",
-		position = 11,
-		section = archiveguardianSection
-	)
-	default Color guardianRangedColor()
-	{
-		return Color.GREEN;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "guardianSpecialColor",
-		name = "Beam color",
-		description = "Counter color for the beam special",
-		position = 12,
-		section = archiveguardianSection
-	)
-	default Color guardianSpecialColor()
-	{
-		return Color.YELLOW;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "guardianMushroomAttackColor",
-		name = "Mushroom attack color",
-		description = "Counter color when the special turns out to be the mushroom attack (mushrooms appear right after it)",
-		position = 16,
-		section = archiveguardianSection
-	)
-	default Color guardianMushroomAttackColor()
-	{
-		return Color.MAGENTA;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "guardianGroundColor",
-		name = "Grounded color",
-		description = "Counter color while the Guardian is on the ground",
-		position = 13,
-		section = archiveguardianSection
-	)
-	default Color guardianGroundColor()
-	{
-		return Color.RED;
-	}
-
 	@ConfigItem(
 		keyName = "guardianMushrooms",
 		name = "Highlight mushrooms",
@@ -245,32 +165,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean guardianMushrooms()
 	{
 		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "guardianMushroomBorder",
-		name = "Border color",
-		description = "Outline color of the mushroom area",
-		position = 1,
-		section = archiveguardianSection
-	)
-	default Color guardianMushroomBorder()
-	{
-		return new Color(255, 0, 0, 200);
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "guardianMushroomFill",
-		name = "Fill color",
-		description = "Fill color of the mushroom area",
-		position = 2,
-		section = archiveguardianSection
-	)
-	default Color guardianMushroomFill()
-	{
-		return new Color(255, 0, 0, 40);
 	}
 
 	// Bork
@@ -299,19 +193,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "borkStunColor",
-		name = "Stun color",
-		description = "Color of the stun counter",
-		position = 4,
-		section = borkSection
-	)
-	default Color borkStunColor()
-	{
-		return Color.CYAN;
-	}
-
 	@ConfigItem(
 		keyName = "smorkStyleColors",
 		name = "Color shots by style",
@@ -322,32 +203,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean smorkStyleColors()
 	{
 		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "smorkMagicColor",
-		name = "Magic color",
-		description = "Shot counter color after a magic shot",
-		position = 9,
-		section = borkSection
-	)
-	default Color smorkMagicColor()
-	{
-		return Color.CYAN;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "smorkRangedColor",
-		name = "Ranged color",
-		description = "Shot counter color after a ranged shot",
-		position = 10,
-		section = borkSection
-	)
-	default Color smorkRangedColor()
-	{
-		return Color.GREEN;
 	}
 
 	@ConfigItem(
@@ -362,32 +217,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "smorkFireBorder",
-		name = "Fire border color",
-		description = "Outline color of the fire bomb area",
-		position = 13,
-		section = borkSection
-	)
-	default Color smorkFireBorder()
-	{
-		return new Color(255, 100, 0, 200);
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "smorkFireFill",
-		name = "Fire fill color",
-		description = "Fill color of the fire bomb area",
-		position = 14,
-		section = borkSection
-	)
-	default Color smorkFireFill()
-	{
-		return new Color(255, 100, 0, 50);
-	}
-
 	// Ezekiel
 
 	@ConfigItem(
@@ -400,32 +229,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean ezekielSwordLanes()
 	{
 		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ezekielSwordBorder",
-		name = "Border color",
-		description = "Outline color of the sword lanes",
-		position = 1,
-		section = ezekielSection
-	)
-	default Color ezekielSwordBorder()
-	{
-		return new Color(255, 200, 0, 200);
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ezekielSwordFill",
-		name = "Fill color",
-		description = "Fill color of the sword lanes",
-		position = 2,
-		section = ezekielSection
-	)
-	default Color ezekielSwordFill()
-	{
-		return new Color(255, 200, 0, 40);
 	}
 
 	@ConfigItem(
@@ -452,49 +255,10 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "ezekielMeleeColor",
-		name = "Melee color",
-		description = "Counter color after a melee attack",
-		position = 8,
-		section = ezekielSection
-	)
-	default Color ezekielMeleeColor()
-	{
-		return Color.RED;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ezekielMagicColor",
-		name = "Magic color",
-		description = "Counter color after a magic attack",
-		position = 9,
-		section = ezekielSection
-	)
-	default Color ezekielMagicColor()
-	{
-		return Color.CYAN;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ezekielSpecialColor",
-		name = "Special color",
-		description = "Counter color after the star special",
-		position = 10,
-		section = ezekielSection
-	)
-	default Color ezekielSpecialColor()
-	{
-		return Color.YELLOW;
-	}
-
 	@ConfigItem(
 		keyName = "ezekielStarCounter",
 		name = "Star counter",
-		description = "Under Ezekiel, count his basic attacks 1, 2, then 3 on the star special, then hide",
+		description = "Below the tick counter, count Ezekiel's basic attacks 1, 2, then 3 on the star special, then hide",
 		position = 10,
 		section = ezekielSection
 	)
@@ -515,32 +279,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "ezekielStarBorder",
-		name = "Star border color",
-		description = "Outline color of the star crack tiles",
-		position = 12,
-		section = ezekielSection
-	)
-	default Color ezekielStarBorder()
-	{
-		return new Color(255, 60, 60, 220);
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ezekielStarFill",
-		name = "Star fill color",
-		description = "Fill color of the star crack tiles",
-		position = 13,
-		section = ezekielSection
-	)
-	default Color ezekielStarFill()
-	{
-		return new Color(255, 60, 60, 50);
-	}
-
 	@ConfigItem(
 		keyName = "ezekielFinaleFront",
 		name = "Finale dodge row",
@@ -551,19 +289,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean ezekielFinaleFront()
 	{
 		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ezekielFinaleSafeColor",
-		name = "Finale dodge color",
-		description = "Color of the finale dodge row",
-		position = 15,
-		section = ezekielSection
-	)
-	default Color ezekielFinaleSafeColor()
-	{
-		return Color.GREEN;
 	}
 
 	// Dreadnoth
@@ -592,45 +317,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "dreadnothSplatterBorder",
-		name = "Border color",
-		description = "Outline color of the blood splatter tiles",
-		position = 2,
-		section = dreadnothSection
-	)
-	default Color dreadnothSplatterBorder()
-	{
-		return new Color(180, 0, 0, 220);
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "dreadnothSplatterFill",
-		name = "Fill color",
-		description = "Fill color of the blood splatter tiles",
-		position = 3,
-		section = dreadnothSection
-	)
-	default Color dreadnothSplatterFill()
-	{
-		return new Color(180, 0, 0, 60);
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "dreadnothIncomingColor",
-		name = "Incoming color",
-		description = "Outline color of where his blood will land",
-		position = 4,
-		section = dreadnothSection
-	)
-	default Color dreadnothIncomingColor()
-	{
-		return new Color(255, 120, 0, 220);
-	}
-
 	@ConfigItem(
 		keyName = "dreadnothIncomingTicks",
 		name = "Incoming blood ticks",
@@ -655,19 +341,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "dreadnothRangedColor",
-		name = "Ranged color",
-		description = "Color of the ranged projectile tick count",
-		position = 10,
-		section = dreadnothSection
-	)
-	default Color dreadnothRangedColor()
-	{
-		return Color.GREEN;
-	}
-
 	@ConfigItem(
 		keyName = "dreadnothJumpCounter",
 		name = "Jump counter",
@@ -678,19 +351,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean dreadnothJumpCounter()
 	{
 		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "dreadnothJumpColor",
-		name = "Jump color",
-		description = "Color of the jump counter",
-		position = 7,
-		section = dreadnothSection
-	)
-	default Color dreadnothJumpColor()
-	{
-		return Color.ORANGE;
 	}
 
 	// Xarth
@@ -707,58 +367,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "xarthMeleeColor",
-		name = "Melee color",
-		description = "Counter color after a melee attack",
-		position = 1,
-		section = xarthSection
-	)
-	default Color xarthMeleeColor()
-	{
-		return Color.RED;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "xarthMagicColor",
-		name = "Magic color",
-		description = "Counter color after a magic attack",
-		position = 2,
-		section = xarthSection
-	)
-	default Color xarthMagicColor()
-	{
-		return Color.CYAN;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "xarthRangedColor",
-		name = "Ranged color",
-		description = "Counter color after a ranged attack",
-		position = 3,
-		section = xarthSection
-	)
-	default Color xarthRangedColor()
-	{
-		return Color.GREEN;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "xarthSpecialColor",
-		name = "Special color",
-		description = "Counter color after a flame blast, root, AoE or summon",
-		position = 4,
-		section = xarthSection
-	)
-	default Color xarthSpecialColor()
-	{
-		return Color.YELLOW;
-	}
-
 	// Final boss (Ocellus)
 
 	@ConfigItem(
@@ -773,62 +381,36 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
+	@Range(min = 1, max = 15)
 	@ConfigItem(
-		keyName = "ocellusMeleeColor",
-		name = "Melee color",
-		description = "Counter color after a melee attack",
-		position = 2,
-		section = finalbossSection
-	)
-	default Color ocellusMeleeColor()
-	{
-		return Color.RED;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusProjectileColor",
-		name = "Projectile color",
-		description = "Counter color after a projectile attack, and the color of his other projectiles",
-		position = 3,
-		section = finalbossSection
-	)
-	default Color ocellusProjectileColor()
-	{
-		return Color.MAGENTA;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusSpecialColor",
-		name = "Special color",
-		description = "Counter color after a special attack (railgun, charge, unleash, soul fragment and so on)",
+		keyName = "ocellusPrayerFirstTicks",
+		name = "Prayer attack ticks",
+		description = "Counter length for the prayer turn-off attack, from when he starts it (14869) to its hit",
 		position = 4,
 		section = finalbossSection
 	)
-	default Color ocellusSpecialColor()
+	default int ocellusPrayerFirstTicks()
 	{
-		return Color.YELLOW;
+		return 5;
 	}
 
-	@Alpha
+	@Range(min = 1, max = 15)
 	@ConfigItem(
-		keyName = "ocellusPrayerColor",
-		name = "Prayer special color",
-		description = "Counter color after the special that turns off prayer",
+		keyName = "ocellusPrayerSecondTicks",
+		name = "Prayer second hit ticks",
+		description = "Counter length for the second hit when he holds the prayer attack (from 14870)",
 		position = 4,
 		section = finalbossSection
 	)
-	default Color ocellusPrayerColor()
+	default int ocellusPrayerSecondTicks()
 	{
-		return new Color(80, 160, 255);
+		return 3;
 	}
 
 	@ConfigItem(
 		keyName = "ocellusSweepCounter",
 		name = "Sweep counter",
-		description = "Under Ocellus in phase 3, count his basic attacks 1, 2, then 3 on the sweep, then hide",
+		description = "Below the tick counter, count Ocellus's basic attacks in phase 3: 1, 2, then 3 on the sweep, then hide",
 		position = 4,
 		section = finalbossSection
 	)
@@ -850,6 +432,18 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "ocellusObliterationCounter",
+		name = "Obliteration counter",
+		description = "When he says Obliteration or Run, count down 15 ticks (in purple)",
+		position = 4,
+		section = finalbossSection
+	)
+	default boolean ocellusObliterationCounter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "ocellusProjectiles",
 		name = "Mark projectiles",
 		description = "Show the ticks until Ocellus's projectiles land: on the projectile if it's aimed at you (like Projectile Ticks), on the landing tile if it's thrown at the ground",
@@ -859,32 +453,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean ocellusProjectiles()
 	{
 		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusWaterColor",
-		name = "Water attack color",
-		description = "Color of his water projectile",
-		position = 6,
-		section = finalbossSection
-	)
-	default Color ocellusWaterColor()
-	{
-		return Color.CYAN;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusFireColor",
-		name = "Fire attack color",
-		description = "Color of his fire projectile",
-		position = 7,
-		section = finalbossSection
-	)
-	default Color ocellusFireColor()
-	{
-		return Color.GREEN;
 	}
 
 	@ConfigItem(
@@ -899,19 +467,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusDangerColor",
-		name = "Danger color",
-		description = "Color of dangerous floor",
-		position = 9,
-		section = finalbossSection
-	)
-	default Color ocellusDangerColor()
-	{
-		return Color.RED;
-	}
-
 	@ConfigItem(
 		keyName = "ocellusArtifacts",
 		name = "Highlight artifacts",
@@ -924,42 +479,16 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusArtifactColor",
-		name = "Artifact color",
-		description = "Outline color of usable artifacts",
-		position = 12,
-		section = finalbossSection
-	)
-	default Color ocellusArtifactColor()
-	{
-		return Color.WHITE;
-	}
-
 	@ConfigItem(
 		keyName = "ocellusPortalCrossing",
 		name = "Portal crossing",
-		description = "Highlight the safe portal tile the game puts on the floor, nearest you",
+		description = "Phase 2: highlight the 2x2 where the orange portals' lanes cross as soon as the portals fire, and the safe portal tile the game puts on the floor",
 		position = 13,
 		section = finalbossSection
 	)
 	default boolean ocellusPortalCrossing()
 	{
 		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusPortalCrossingColor",
-		name = "Portal crossing color",
-		description = "Color of the portal crossing square",
-		position = 13,
-		section = finalbossSection
-	)
-	default Color ocellusPortalCrossingColor()
-	{
-		return Color.ORANGE;
 	}
 
 	@ConfigItem(
@@ -974,19 +503,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusSoulFragmentColor",
-		name = "Soul fragment color",
-		description = "Color of soul fragment tiles",
-		position = 13,
-		section = finalbossSection
-	)
-	default Color ocellusSoulFragmentColor()
-	{
-		return Color.CYAN;
-	}
-
 	@ConfigItem(
 		keyName = "ocellusVoidPortals",
 		name = "Highlight void portals",
@@ -999,45 +515,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusSiphonColor",
-		name = "Void Siphon color",
-		description = "Color of the Void Siphon (heals Ocellus)",
-		position = 13,
-		section = finalbossSection
-	)
-	default Color ocellusSiphonColor()
-	{
-		return Color.RED;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusAugmenterColor",
-		name = "Void Augmenter color",
-		description = "Color of the Void Augmenter (buffs Ocellus)",
-		position = 13,
-		section = finalbossSection
-	)
-	default Color ocellusAugmenterColor()
-	{
-		return Color.ORANGE;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusRiftColor",
-		name = "Void Rift color",
-		description = "Color of the Void Rift",
-		position = 13,
-		section = finalbossSection
-	)
-	default Color ocellusRiftColor()
-	{
-		return Color.MAGENTA;
-	}
-
 	@ConfigItem(
 		keyName = "ocellusVoidVine",
 		name = "Highlight trapped players",
@@ -1048,19 +525,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean ocellusVoidVine()
 	{
 		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ocellusTrappedColor",
-		name = "Trapped player color",
-		description = "Color of a trapped player's tile",
-		position = 13,
-		section = finalbossSection
-	)
-	default Color ocellusTrappedColor()
-	{
-		return new Color(0, 255, 0);
 	}
 
 	// Each encounter's settings go in its section above, for example:

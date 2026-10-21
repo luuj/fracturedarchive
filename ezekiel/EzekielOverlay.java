@@ -39,6 +39,13 @@ public class EzekielOverlay extends EncounterOverlay
 		SpotanimID.VFX_EZEKIEL_STAR_EXPLOSION_SPAWN01,
 		SpotanimID.VFX_EZEKIEL_STAR_EXPLOSION_MARKER01);
 
+	/** Colors (the colors you had saved). */
+	private static final Color SWORD_BORDER = new Color(255, 200, 0, 200);
+	private static final Color SWORD_FILL = new Color(255, 200, 0, 15);
+	private static final Color STAR_BORDER = new Color(255, 60, 60, 220);
+	private static final Color STAR_FILL = new Color(255, 60, 60, 50);
+	private static final Color DODGE_COLOR = new Color(0, 255, 0, 79);
+
 	@Inject
 	private Ezekiel encounter;
 
@@ -78,7 +85,7 @@ public class EzekielOverlay extends EncounterOverlay
 			{
 				String text = Integer.toString(ticks);
 				Point point = sword.getCanvasTextLocation(graphics, text, config.textZ());
-				renderText(graphics, point, text, showLane ? config.ezekielSwordBorder() : Color.WHITE);
+				renderText(graphics, point, text, showLane ? SWORD_BORDER : Color.WHITE);
 			}
 		}
 
@@ -90,7 +97,7 @@ public class EzekielOverlay extends EncounterOverlay
 				if (STAR_GRAPHICS.contains(id))
 				{
 					renderPoly(graphics, Perspective.getCanvasTilePoly(client, g.getLocation()),
-						config.ezekielStarBorder(), config.ezekielStarFill(), config.borderWidth());
+						STAR_BORDER, STAR_FILL, config.borderWidth());
 				}
 			}
 		}
@@ -109,10 +116,8 @@ public class EzekielOverlay extends EncounterOverlay
 		int star = encounter.getStarCount();
 		if (config.ezekielStarCounter() && star > 0)
 		{
-			// Under him, so it doesn't clash with the attack counter above him
-			String text = Integer.toString(star);
-			renderText(graphics, ezekiel.getCanvasTextLocation(graphics, text, 0), text,
-				star >= 3 ? config.ezekielSpecialColor() : config.ezekielMeleeColor());
+			// Stacked directly under the tick counter (like Theatre), in a smaller font
+			renderStackedText(graphics, ezekiel, Integer.toString(star), star >= 3 ? Ezekiel.SPECIAL_COLOR : Ezekiel.MELEE_COLOR, 14f);
 		}
 
 		if (config.ezekielAttackCounter() && encounter.getAttackTicks() > 0)
@@ -145,7 +150,7 @@ public class EzekielOverlay extends EncounterOverlay
 		// The far row, across the way he's facing
 		int toLastRow = half + size;
 		LocalPoint rowMiddle = center.plus(dx * toLastRow * tile, dy * toLastRow * tile);
-		Color safe = config.ezekielFinaleSafeColor();
+		Color safe = DODGE_COLOR;
 		Color safeFill = new Color(safe.getRed(), safe.getGreen(), safe.getBlue(), 70);
 		for (int i = -half; i <= size - 1 - half; i++)
 		{
@@ -201,9 +206,9 @@ public class EzekielOverlay extends EncounterOverlay
 		if (!lane.isEmpty())
 		{
 			graphics.setStroke(new BasicStroke(config.borderWidth()));
-			graphics.setColor(config.ezekielSwordFill());
+			graphics.setColor(SWORD_FILL);
 			graphics.fill(lane);
-			graphics.setColor(config.ezekielSwordBorder());
+			graphics.setColor(SWORD_BORDER);
 			graphics.draw(lane);
 		}
 	}

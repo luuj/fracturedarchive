@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.fracturedarchive.archiveguardian;
 
+import java.awt.Color;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -14,6 +15,10 @@ public class ArchiveGuardianOverlay extends EncounterOverlay
 {
 	/** Tiles marked on each side of the mushroom. */
 	private static final int MUSHROOM_RADIUS = 1;
+
+	/** Mushroom area colors (the colors you had saved). */
+	private static final Color MUSHROOM_BORDER = new Color(255, 0, 0, 100);
+	private static final Color MUSHROOM_FILL = new Color(255, 0, 0, 17);
 
 	@Inject
 	private ArchiveGuardian encounter;
@@ -34,7 +39,7 @@ public class ArchiveGuardianOverlay extends EncounterOverlay
 				// The mushroom's footprint plus 1 tile on every side (3x3 for a 1x1 mushroom)
 				int size = Math.max(mushroom.sizeX(), mushroom.sizeY()) + 2 * MUSHROOM_RADIUS;
 				renderPoly(graphics, Perspective.getCanvasTileAreaPoly(client, mushroom.getLocalLocation(), size),
-					config.guardianMushroomBorder(), config.guardianMushroomFill(), config.borderWidth());
+					MUSHROOM_BORDER, MUSHROOM_FILL, config.borderWidth());
 			}
 		}
 

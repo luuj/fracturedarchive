@@ -84,6 +84,27 @@ public abstract class EncounterOverlay extends Overlay
 		}
 	}
 
+	/**
+	 * Draws a small count stacked directly under an actor's tick counter (like Theatre), at the
+	 * given font size, centered under where the counter sits.
+	 */
+	protected void renderStackedText(Graphics2D graphics, net.runelite.api.Actor actor, String text, Color color, float size)
+	{
+		Point anchor = actor.getCanvasTextLocation(graphics, text, config.textZ());
+		if (anchor == null)
+		{
+			return;
+		}
+
+		java.awt.Font mainFont = graphics.getFont();
+		int mainWidth = graphics.getFontMetrics().stringWidth(text);
+		int mainHeight = graphics.getFontMetrics().getHeight();
+		graphics.setFont(mainFont.deriveFont(size));
+		int smallWidth = graphics.getFontMetrics().stringWidth(text);
+		renderText(graphics, new Point(anchor.getX() + (mainWidth - smallWidth) / 2, anchor.getY() + mainHeight), text, color);
+		graphics.setFont(mainFont);
+	}
+
 	/** Draws text at a canvas point with the standard 1px shadow. */
 	protected void renderText(Graphics2D graphics, Point canvasPoint, String text, Color color)
 	{

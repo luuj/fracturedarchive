@@ -1,5 +1,6 @@
 package net.runelite.client.plugins.fracturedarchive.dreadnoth;
 
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.util.Map;
@@ -19,6 +20,13 @@ import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
 public class DreadnothOverlay extends EncounterOverlay
 {
 	private static final int CYCLES_PER_TICK = 30;
+
+	/** Colors (the colors you had saved). */
+	private static final Color SPLATTER_BORDER = new Color(244, 23, 165);
+	private static final Color SPLATTER_FILL = new Color(180, 0, 0, 0);
+	private static final Color INCOMING_COLOR = new Color(31, 236, 101);
+	private static final Color JUMP_COLOR = new Color(255, 200, 0);
+	private static final Color RANGED_COLOR = Color.GREEN;
 
 	@Inject
 	private Dreadnoth encounter;
@@ -47,7 +55,7 @@ public class DreadnothOverlay extends EncounterOverlay
 				{
 					poly = Perspective.getCanvasTilePoly(client, object.getLocalLocation());
 				}
-				renderPoly(graphics, poly, config.dreadnothSplatterBorder(), config.dreadnothSplatterFill(), config.borderWidth());
+				renderPoly(graphics, poly, SPLATTER_BORDER, SPLATTER_FILL, config.borderWidth());
 			}
 		}
 
@@ -63,7 +71,7 @@ public class DreadnothOverlay extends EncounterOverlay
 		if (config.dreadnothJumpCounter() && dreadnoth != null && encounter.getJumpTicks() > 0)
 		{
 			String text = Integer.toString(encounter.getJumpTicks());
-			renderText(graphics, dreadnoth.getCanvasTextLocation(graphics, text, config.textZ()), text, config.dreadnothJumpColor());
+			renderText(graphics, dreadnoth.getCanvasTextLocation(graphics, text, config.textZ()), text, JUMP_COLOR);
 		}
 
 		if (config.dreadnothIncoming())
@@ -71,14 +79,14 @@ public class DreadnothOverlay extends EncounterOverlay
 			for (Map.Entry<Projectile, LocalPoint> entry : encounter.getIncoming().entrySet())
 			{
 				LocalPoint target = entry.getValue();
-				renderPoly(graphics, Perspective.getCanvasTilePoly(client, target), config.dreadnothIncomingColor(), null, config.borderWidth());
+				renderPoly(graphics, Perspective.getCanvasTilePoly(client, target), INCOMING_COLOR, null, config.borderWidth());
 
 				int cycles = entry.getKey().getRemainingCycles();
 				if (config.dreadnothIncomingTicks() && cycles > 0)
 				{
 					// 30 client cycles (20 ms each) per game tick, rounded up
 					String text = Integer.toString((cycles + CYCLES_PER_TICK - 1) / CYCLES_PER_TICK);
-					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, target, text, 0), text, config.dreadnothIncomingColor());
+					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, target, text, 0), text, INCOMING_COLOR);
 				}
 			}
 		}
@@ -99,7 +107,7 @@ public class DreadnothOverlay extends EncounterOverlay
 		Point p = Perspective.localToCanvas(client, (int) shot.getX(), (int) shot.getY(), (int) shot.getZ());
 		if (p != null)
 		{
-			renderText(graphics, p, Integer.toString(cycles / CYCLES_PER_TICK), config.dreadnothRangedColor());
+			renderText(graphics, p, Integer.toString(cycles / CYCLES_PER_TICK), RANGED_COLOR);
 		}
 	}
 }

@@ -22,6 +22,10 @@ import net.runelite.client.plugins.fracturedarchive.xarth.Xarth;
 @Singleton
 class TargetOverlay extends EncounterOverlay
 {
+	/** Boss targets red, Smork targets blue. */
+	private static final Color BOSS_TARGET_COLOR = Color.RED;
+	private static final Color SMORK_TARGET_COLOR = Color.BLUE;
+
 	private final List<Encounter> encounters;
 	private final Bork bork;
 
@@ -46,12 +50,12 @@ class TargetOverlay extends EncounterOverlay
 		// Each Smork's pick stays highlighted until its fire bomb comes out.
 		for (Player player : bork.getSmorkTargets().values())
 		{
-			highlight(graphics, player, config.smorkTargetColor());
+			highlight(graphics, player, SMORK_TARGET_COLOR);
 		}
 
 		for (Encounter encounter : encounters)
 		{
-			highlight(graphics, encounter.getTarget(), config.targetColor());
+			highlight(graphics, encounter.getTarget(), BOSS_TARGET_COLOR);
 		}
 	}
 
