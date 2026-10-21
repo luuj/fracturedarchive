@@ -45,9 +45,12 @@ public class FinalBoss extends Encounter
 	static final Color PROJECTILE_COLOR = Color.MAGENTA;
 	static final Color PRAYER_COLOR = new Color(80, 160, 255);
 	static final Color SPECIAL_COLOR = Color.YELLOW;
+	static final Color MAGIC_COLOR = PRAYER_COLOR;
+	static final Color RANGED_COLOR = Color.GREEN;
 	static final Color DANGER_COLOR = new Color(255, 0, 0, 75);
 	static final Color ARTIFACT_COLOR = Color.WHITE;
 	static final Color PORTAL_CROSSING_COLOR = new Color(255, 200, 0);
+	static final Color NEXT_CROSSING_COLOR = new Color(80, 160, 255);
 	static final Color SOUL_FRAGMENT_COLOR = Color.CYAN;
 	static final Color TRAPPED_COLOR = Color.GREEN;
 	static final Color AUGMENTER_COLOR = new Color(255, 200, 0);
@@ -60,7 +63,7 @@ public class FinalBoss extends Encounter
 
 	enum AttackStyle
 	{
-		MELEE, PROJECTILE, SPECIAL, PRAYER
+		MELEE, PROJECTILE, SPECIAL, PRAYER, MAGIC, RANGED
 	}
 
 	/** Attacks that start the counter, by style. Timings aren't confirmed yet. */
@@ -90,8 +93,9 @@ public class FinalBoss extends Encounter
 
 	/** Attacks whose length has been confirmed in game, in ticks. */
 	private static final Map<Integer, Integer> KNOWN_TICKS = Map.of(
-		AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC, 3,
-		AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH, 4);
+		AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC, 4,
+		AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH, 5,
+		AnimationID.NPC_OCELLUS_PHASE3_MELEE_HYBRID, 6);
 	// The prayer special's two hits use the "Prayer attack" settings (see onAnimationChanged)
 
 	/** Void degen bombs and puddles on the floor: stand off these. */
@@ -181,6 +185,13 @@ public class FinalBoss extends Encounter
 		attackStyle = null;
 		clearUnleash();
 		obliterationEndTick = -1;
+		prayerHolding = false;
+		prayerEnding = false;
+		hybridPending = false;
+		clearVoidChain();
+		chainExplosions.clear();
+		deflectEndTick = -1;
+		deflectStartsShowing.clear();
 		sweepCount = 0;
 		sweepShownUntil = -1;
 	}
@@ -256,6 +267,192 @@ public class FinalBoss extends Encounter
 	private static final int OBLITERATION_TICKS = 15;
 	static final Color OBLITERATION_COLOR = new Color(170, 0, 255);
 	private int obliterationEndTick = -1;
+	/**
+	 * The hybrid attack (14844) looks the same whatever style it is; the effect on Ocellus with it
+	 * says which: 4328 melee, 4329 magic, 4330 ranged.
+	 */
+	private boolean hybridPending;
+
+	/**
+	 * Phase 4 deflect: the invisible NPC in the middle shows a ranged deflect (21 ticks, until the
+	 * deflect ends), then later a melee one (19 ticks). The number in the effect name (none, 90,
+	 * 180, 270) is the way it faces.
+	 */
+	private static final Set<Integer> RANGED_DEFLECT_START = Set.of(4349, 4355, 4361, 4367);
+	private static final Set<Integer> MELEE_DEFLECT_START = Set.of(4352, 4358, 4364, 4370);
+	private static final int RANGED_DEFLECT_TICKS = 21;
+	private static final int MELEE_DEFLECT_TICKS = 19;
+	private boolean deflectRanged;
+	private int deflectEndTick = -1;
+	private final Set<Integer> deflectStartsShowing = new java.util.HashSet<>();
+
+	/** Ticks left on the current deflect (0 = none). */
+	int getDeflectTicks()
+	{
+		return deflectEndTick < 0 ? 0 : Math.max(0, deflectEndTick - client.getTickCount());
+	}
+
+	Color getDeflectColor()
+	{
+		return deflectRanged ? RANGED_COLOR : MELEE_COLOR;
+	}
+
+	private void checkDeflect()
+	{
+		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+		if (wv == null)
+		{
+			return;
+		}
+		Set<Integer> showing = new java.util.HashSet<>();
+		for (NPC npc : wv.npcs())
+		{
+			for (net.runelite.api.ActorSpotAnim spotAnim : npc.getSpotAnims())
+			{
+				int id = spotAnim.getId();
+				if (RANGED_DEFLECT_START.contains(id) || MELEE_DEFLECT_START.contains(id))
+				{
+					showing.add(id);
+					if (!deflectStartsShowing.contains(id))
+					{
+						deflectRanged = RANGED_DEFLECT_START.contains(id);
+						deflectEndTick = client.getTickCount() + (deflectRanged ? RANGED_DEFLECT_TICKS : MELEE_DEFLECT_TICKS);
+						debug("deflect " + (deflectRanged ? "ranged" : "melee") + " (" + id + ")");
+					}
+				}
+			}
+		}
+		deflectStartsShowing.clear();
+		deflectStartsShowing.addAll(showing);
+	}
+
+	/** Colors the hybrid attack's counter from the effect on Ocellus. */
+	private void checkHybridStyle()
+	{
+		if (!hybridPending || boss == null)
+		{
+			return;
+		}
+		for (net.runelite.api.ActorSpotAnim spotAnim : boss.getSpotAnims())
+		{
+			switch (spotAnim.getId())
+			{
+				case net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_PHASE3_MELEE_HYBRID:
+					attackStyle = AttackStyle.MELEE;
+					hybridPending = false;
+					return;
+				case net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_PHASE3_MELEE_HYBRID_MAGIC:
+					attackStyle = AttackStyle.MAGIC;
+					hybridPending = false;
+					return;
+				case net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_PHASE3_MELEE_HYBRID_RANGED:
+					attackStyle = AttackStyle.RANGED;
+					hybridPending = false;
+					return;
+				default:
+					break;
+			}
+		}
+	}
+
+	/**
+	 * Phase 4 void chain: players get a telegraph (4340), then 3 ticks later explosions (4339)
+	 * land every 2 ticks, 6 in all, chasing them.
+	 */
+	static final Color VOID_CHAIN_COLOR = new Color(170, 0, 255);
+	private static final int VOID_CHAIN_TELEGRAPH = net.runelite.api.gameval.SpotanimID.VFX_VOID_CHAIN_PLAYER_TELEGRAPH;
+	private static final int VOID_CHAIN_EXPLOSION = net.runelite.api.gameval.SpotanimID.VFX_VOID_CHAIN_EXPLOSION;
+	private static final int VOID_CHAIN_FIRST_HIT = 3;
+	private static final int VOID_CHAIN_GAP = 2;
+	private static final int VOID_CHAIN_HITS = 6;
+	/** Players with the telegraph, the tick the next explosion lands, and how many have landed. */
+	private final Set<net.runelite.api.Player> chainTargets = new java.util.HashSet<>();
+	private int chainNextHitTick = -1;
+	private int chainHits;
+	/** When the last chain finished, so a telegraph still fading out doesn't start another. */
+	private int chainEndTick = -100;
+	/** Explosions on the ground. */
+	private final Set<net.runelite.api.GraphicsObject> chainExplosions = new java.util.HashSet<>();
+
+	Set<net.runelite.api.Player> getChainTargets()
+	{
+		return chainNextHitTick < 0 ? Set.of() : chainTargets;
+	}
+
+	/** Ticks until the next void chain explosion (0 = none coming). */
+	int getChainTicks()
+	{
+		return chainNextHitTick < 0 ? 0 : Math.max(0, chainNextHitTick - client.getTickCount());
+	}
+
+	Set<net.runelite.api.GraphicsObject> getChainExplosions()
+	{
+		return chainExplosions;
+	}
+
+	private void checkVoidChain()
+	{
+		chainExplosions.removeIf(net.runelite.api.GraphicsObject::finished);
+		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+		if (wv == null)
+		{
+			return;
+		}
+		for (net.runelite.api.Player player : wv.players())
+		{
+			for (net.runelite.api.ActorSpotAnim spotAnim : player.getSpotAnims())
+			{
+				if (spotAnim.getId() == VOID_CHAIN_TELEGRAPH && !chainTargets.contains(player)
+					&& client.getTickCount() - chainEndTick > 10)
+				{
+					if (chainNextHitTick < 0)
+					{
+						chainTargets.clear();
+						chainHits = 0;
+						chainNextHitTick = client.getTickCount() + VOID_CHAIN_FIRST_HIT;
+					}
+					chainTargets.add(player);
+				}
+			}
+		}
+		if (chainNextHitTick >= 0 && client.getTickCount() > chainNextHitTick + VOID_CHAIN_GAP)
+		{
+			// Missed the explosions; don't leave it hanging
+			clearVoidChain();
+		}
+	}
+
+	private void voidChainHit()
+	{
+		if (chainNextHitTick < 0)
+		{
+			return;
+		}
+		if (++chainHits >= VOID_CHAIN_HITS)
+		{
+			clearVoidChain();
+		}
+		else
+		{
+			chainNextHitTick = client.getTickCount() + VOID_CHAIN_GAP;
+		}
+	}
+
+	private void clearVoidChain()
+	{
+		if (chainNextHitTick >= 0)
+		{
+			chainEndTick = client.getTickCount();
+		}
+		chainNextHitTick = -1;
+		chainHits = 0;
+		chainTargets.clear();
+	}
+
+	/** Holding the prayer attack (14870), and whether his "prayer out" effect has shown yet. */
+	private boolean prayerHolding;
+	private boolean prayerEnding;
+	private int prayerOutTick = -1;
 	/** What he says to start it: "Obliteration" or "Run" (as a whole word, so not "rune"). */
 	private static final java.util.regex.Pattern OBLITERATION_PHRASES =
 		java.util.regex.Pattern.compile("obliteration|\\brun\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
@@ -302,87 +499,198 @@ public class FinalBoss extends Encounter
 	}
 
 	/**
-	 * Phase 2 portals: every 5 ticks the portals on the quadrant's two inner walls fire beams
-	 * straight across (projectile 4269), one beam per 2-tile portal. One row portal and one column
-	 * portal stay silent each time: those are the orange ones, and where their lanes cross is the
-	 * 2x2 no beam goes through.
+	 * Phase 2 portals: every 5 ticks, 4 ticks before they fire, the portals about to fire on the
+	 * quadrant's two inner walls light up (TFA_OCELLUS_QUADRANT_WALL_ACTIVE). One portal on each
+	 * wall doesn't light: those are the orange ones, and where their lanes cross is the 2x2 no
+	 * beam goes through.
 	 */
-	private final Set<Projectile> portalBeams = Collections.newSetFromMap(new java.util.WeakHashMap<>());
-	private final java.util.List<int[]> beamsThisTick = new java.util.ArrayList<>();
-	/** Every row/column portal seen firing so far, per quadrant (keyed by its two inner walls). */
-	/** South-west tiles of the current orange crossings (one per quadrant firing), and when they were found. */
+	private final java.util.List<WorldPoint> activePortalsThisTick = new java.util.ArrayList<>();
+	/** South-west tiles of the current orange crossings, and when they were found. */
 	private final java.util.List<WorldPoint> orangeCrossings = new java.util.ArrayList<>();
 	private int orangeCrossingTick = -1;
-	private int lastBeamTick = -1;
+	private int lastActivePortalTick = -1;
+	/** Shown from the portals lighting up until the next set lights up (or this long after). */
 	private static final int PORTAL_CYCLE = 5;
-	/** Each quadrant has 6 portals per wall, every 2 tiles, starting next to the inner walls. */
+	/** Each wall has 6 portals, every 2 tiles, starting next to the corner of the inner walls. */
 	private static final int PORTALS_PER_WALL = 6;
+
+	/** Clears the crossing once its portals have gone off and no new set has lit up. */
+	private void expireOrangeCrossing()
+	{
+		if (orangeCrossingTick >= 0 && client.getTickCount() - orangeCrossingTick > PORTAL_CYCLE)
+		{
+			orangeCrossings.clear();
+			orangeCrossingTick = -1;
+			nextCrossing = null;
+		}
+	}
+
+	/** A portal lit up: work out the crossing straight away from this tick's lit portals. */
+	private void portalLit(WorldPoint wp)
+	{
+		if (lastActivePortalTick != client.getTickCount())
+		{
+			activePortalsThisTick.clear();
+			lastActivePortalTick = client.getTickCount();
+		}
+		activePortalsThisTick.add(wp);
+		findOrangeCrossing();
+	}
 
 	private void findOrangeCrossing()
 	{
-		if (beamsThisTick.isEmpty())
-		{
-			if (orangeCrossingTick >= 0 && client.getTickCount() - orangeCrossingTick > PORTAL_CYCLE)
-			{
-				orangeCrossings.clear();
-				orangeCrossingTick = -1;
-			}
-			return;
-		}
-		if (lastBeamTick == client.getTickCount())
-		{
-			// More beams of this volley may still be coming this tick
-			return;
-		}
+		java.util.List<WorldPoint> lit = activePortalsThisTick;
 
-		java.util.List<int[]> beams = new java.util.ArrayList<>(beamsThisTick);
-		beamsThisTick.clear();
-
-		// The two inner walls: the x the row beams all start from, and the y the column beams start from
+		// The two inner walls: the x the row portals share, and the y the column portals share
 		Map<Integer, Integer> xCount = new HashMap<>();
 		Map<Integer, Integer> yCount = new HashMap<>();
-		for (int[] b : beams)
+		for (WorldPoint wp : lit)
 		{
-			xCount.merge(b[0], 1, Integer::sum);
-			yCount.merge(b[1], 1, Integer::sum);
+			xCount.merge(wp.getX(), 1, Integer::sum);
+			yCount.merge(wp.getY(), 1, Integer::sum);
 		}
 		int wallX = java.util.Collections.max(xCount.entrySet(), Map.Entry.comparingByValue()).getKey();
 		int wallY = java.util.Collections.max(yCount.entrySet(), Map.Entry.comparingByValue()).getKey();
-		int plane = beams.get(0)[4];
+		int plane = lit.get(0).getPlane();
 
-		// Split by quadrant: east/west of the inner x wall, north/south of the inner y wall
-		Map<Integer, Set<Integer>> rows = new HashMap<>();
-		Map<Integer, Set<Integer>> cols = new HashMap<>();
-		for (int[] b : beams)
+		// Row portals on the north / south arm of the x wall, column portals on the east / west arm
+		Map<Boolean, Set<Integer>> rows = new HashMap<>();
+		Map<Boolean, Set<Integer>> cols = new HashMap<>();
+		for (WorldPoint wp : lit)
 		{
-			if (b[0] == wallX && b[1] != wallY)
+			if (wp.getX() == wallX && wp.getY() != wallY)
 			{
-				int quadrant = quadrant(b[2] > b[0], b[1] > wallY);
-				rows.computeIfAbsent(quadrant, k -> new java.util.HashSet<>()).add(b[1]);
+				rows.computeIfAbsent(wp.getY() > wallY, k -> new java.util.HashSet<>()).add(wp.getY());
 			}
-			else if (b[1] == wallY && b[0] != wallX)
+			else if (wp.getY() == wallY && wp.getX() != wallX)
 			{
-				int quadrant = quadrant(b[0] > wallX, b[3] > b[1]);
-				cols.computeIfAbsent(quadrant, k -> new java.util.HashSet<>()).add(b[0]);
+				cols.computeIfAbsent(wp.getX() > wallX, k -> new java.util.HashSet<>()).add(wp.getX());
 			}
 		}
 
-		orangeCrossings.clear();
-		for (Map.Entry<Integer, Set<Integer>> entry : rows.entrySet())
+		// Always the quadrant you're in: another player left behind in a different quadrant lights
+		// up theirs too, and that one is ignored
+		Boolean north;
+		Boolean east;
+		if (client.getLocalPlayer() != null)
 		{
-			int quadrant = entry.getKey();
-			boolean east = (quadrant & 1) != 0;
-			boolean north = (quadrant & 2) != 0;
-			Integer row = silentPortal(entry.getValue(), wallY, north);
-			Integer col = silentPortal(cols.getOrDefault(quadrant, Set.of()), wallX, east);
-			debug("portal beams " + (north ? "N" : "S") + (east ? "E" : "W") + ": silent row " + row + " col " + col);
+			WorldPoint me = client.getLocalPlayer().getWorldLocation();
+			north = me.getY() > wallY;
+			east = me.getX() > wallX;
+			if (!rows.containsKey(north) || !cols.containsKey(east))
+			{
+				// Your quadrant's walls aren't lit (yet)
+				return;
+			}
+		}
+		else
+		{
+			north = rows.size() == 1 ? rows.keySet().iterator().next() : null;
+			east = cols.size() == 1 ? cols.keySet().iterator().next() : null;
+		}
+
+		if (north == null || east == null)
+		{
+			return;
+		}
+		java.util.List<WorldPoint> found = new java.util.ArrayList<>();
+		if (north != null && east != null)
+		{
+			Integer row = silentPortal(rows.getOrDefault(north, Set.of()), wallY, north);
+			Integer col = silentPortal(cols.getOrDefault(east, Set.of()), wallX, east);
 			if (row != null && col != null)
 			{
-				// A portal's beam lane is its own tile and the one below / to the west of it
-				orangeCrossings.add(new WorldPoint(col - 1, row - 1, plane));
+				// A portal's lane is its own tile and the next one up / east
+				found.add(new WorldPoint(col, row, plane));
 			}
 		}
-		orangeCrossingTick = orangeCrossings.isEmpty() ? -1 : client.getTickCount();
+		if (!found.isEmpty() && !found.equals(orangeCrossings))
+		{
+			debug("portals lit " + (north ? "N" : "S") + (east ? "E" : "W") + ": orange crossing " + tile(found.get(0)));
+		}
+		if (!found.isEmpty())
+		{
+			// Only once the whole set is in (until then more than one portal per wall looks dark)
+			orangeCrossings.clear();
+			orangeCrossings.addAll(found);
+			if (orangeCrossingTick != client.getTickCount())
+			{
+				predictNextCrossing(found.get(0), wallX, wallY, north, east);
+			}
+			orangeCrossingTick = client.getTickCount();
+		}
+	}
+
+	/**
+	 * There are only three orders the orange portals go in, 6 volleys each, as {row, column}
+	 * portal numbers counted out from the corner of the inner walls. The first one says which.
+	 */
+	private static final int[][][] PORTAL_SEQUENCES = {
+		{{1, 1}, {3, 1}, {1, 3}, {1, 1}, {2, 2}, {4, 1}},
+		{{2, 2}, {2, 3}, {1, 4}, {2, 2}, {2, 4}, {3, 3}},
+		{{1, 0}, {1, 3}, {1, 5}, {3, 3}, {2, 2}, {3, 0}},
+	};
+	/** Per quadrant: which sequence it's on and which step it's at. */
+	private final Map<Integer, int[]> portalSequence = new HashMap<>();
+	/** The next crossing, shown early (null = none). */
+	private WorldPoint nextCrossing;
+
+	WorldPoint getNextCrossing()
+	{
+		return orangeCrossingTick < 0 ? null : nextCrossing;
+	}
+
+	private static int slotIndex(int slot, int wall, boolean positiveSide)
+	{
+		int offset = positiveSide ? slot - (wall + 1) : (wall - 2) - slot;
+		return offset % 2 == 0 ? offset / 2 : -1;
+	}
+
+	private static int slot(int index, int wall, boolean positiveSide)
+	{
+		return positiveSide ? wall + 1 + 2 * index : wall - 2 - 2 * index;
+	}
+
+	private void predictNextCrossing(WorldPoint crossing, int wallX, int wallY, boolean north, boolean east)
+	{
+		int quadrant = quadrant(east, north);
+		int row = slotIndex(crossing.getY(), wallY, north);
+		int col = slotIndex(crossing.getX(), wallX, east);
+
+		// Carry on the sequence this quadrant is on if this is its next step, else work it out again
+		int[] state = portalSequence.get(quadrant);
+		if (state != null && client.getTickCount() - state[2] <= PORTAL_CYCLE + 2 && state[1] + 1 < 6
+			&& PORTAL_SEQUENCES[state[0]][state[1] + 1][0] == row && PORTAL_SEQUENCES[state[0]][state[1] + 1][1] == col)
+		{
+			state[1]++;
+		}
+		else
+		{
+			state = null;
+			for (int i = 0; i < PORTAL_SEQUENCES.length; i++)
+			{
+				if (PORTAL_SEQUENCES[i][0][0] == row && PORTAL_SEQUENCES[i][0][1] == col)
+				{
+					state = new int[]{i, 0, 0};
+				}
+			}
+		}
+
+		nextCrossing = null;
+		if (state == null)
+		{
+			portalSequence.remove(quadrant);
+			debug("portal sequence: step " + row + "," + col + " not recognised");
+			return;
+		}
+		state[2] = client.getTickCount();
+		portalSequence.put(quadrant, state);
+		if (state[1] + 1 < 6)
+		{
+			int[] next = PORTAL_SEQUENCES[state[0]][state[1] + 1];
+			nextCrossing = new WorldPoint(slot(next[1], wallX, east), slot(next[0], wallY, north), crossing.getPlane());
+		}
+		debug("portal sequence " + "ABC".charAt(state[0]) + " step " + (state[1] + 1) + (nextCrossing != null ? ", next " + tile(nextCrossing) : ", last"));
 	}
 
 	private static int quadrant(boolean east, boolean north)
@@ -391,7 +699,7 @@ public class FinalBoss extends Encounter
 	}
 
 	/**
-	 * The one portal on a wall that didn't fire. Portals sit every 2 tiles: on the far side of the
+	 * The one portal on a wall that didn't light up. Portals sit every 2 tiles: on the far side of the
 	 * inner wall they start 1 tile past it, on the near side 2 tiles before it.
 	 */
 	private static Integer silentPortal(Set<Integer> fired, int wall, boolean positiveSide)
@@ -562,6 +870,14 @@ public class FinalBoss extends Encounter
 		{
 			return PRAYER_COLOR;
 		}
+		if (attackStyle == AttackStyle.MAGIC)
+		{
+			return MAGIC_COLOR;
+		}
+		if (attackStyle == AttackStyle.RANGED)
+		{
+			return RANGED_COLOR;
+		}
 		return attackStyle == AttackStyle.PROJECTILE ? PROJECTILE_COLOR : SPECIAL_COLOR;
 	}
 
@@ -596,6 +912,9 @@ public class FinalBoss extends Encounter
 			attackStyle = AttackStyle.PRAYER;
 			attackStartTick = -1;
 			attackLength = config.ocellusPrayerSecondTicks();
+			prayerHolding = true;
+			prayerEnding = false;
+			prayerOutTick = -1;
 		}
 
 		switch (animation)
@@ -608,9 +927,9 @@ public class FinalBoss extends Encounter
 				sweepShownUntil = -1;
 				break;
 			case AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH:
-				// The sweep: show 3 for its 4 ticks, then go away
+				// The sweep: show 3 for its 5 ticks, then go away
 				sweepCount = 3;
-				sweepShownUntil = client.getTickCount() + 4;
+				sweepShownUntil = client.getTickCount() + 5;
 				break;
 			case AnimationID.NPC_OCELLUS_PHASE3_MELEE_SUPERIOR_SLASH:
 			case AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN:
@@ -627,6 +946,8 @@ public class FinalBoss extends Encounter
 		AttackStyle style = ATTACKS.get(animation);
 		if (style != null)
 		{
+			prayerHolding = false;
+			hybridPending = animation == AnimationID.NPC_OCELLUS_PHASE3_MELEE_HYBRID;
 			// The count starts on the game tick after the animation is seen, so the first number
 			// shown is always the full length, whichever point in the tick the animation arrives. Attacks with a confirmed length use
 			// it; the rest use DEFAULT_ATTACK_TICKS.
@@ -636,13 +957,20 @@ public class FinalBoss extends Encounter
 			attackLength = animation == AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN
 				? config.ocellusPrayerFirstTicks()
 				: KNOWN_TICKS.getOrDefault(animation, DEFAULT_ATTACK_TICKS);
+			checkHybridStyle();
 		}
 	}
 
 	@Override
 	public void onGameTick(GameTick event)
 	{
-		findOrangeCrossing();
+		expireOrangeCrossing();
+		checkHybridStyle();
+		if (isActive())
+		{
+			checkDeflect();
+			checkVoidChain();
+		}
 		recordSceneryAnimations();
 		if (isActive())
 		{
@@ -653,9 +981,35 @@ public class FinalBoss extends Encounter
 		{
 			attackStartTick = client.getTickCount();
 		}
+		// While he holds the prayer attack it hits every few ticks until his "prayer out" effect
+		// (4327) shows on him; the hit after that is the last one.
+		if (prayerHolding && boss != null)
+		{
+			for (net.runelite.api.ActorSpotAnim spotAnim : boss.getSpotAnims())
+			{
+				if (spotAnim.getId() == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_PHASE3_MELEE_PRAYER_OUT
+					&& prayerOutTick < 0)
+				{
+					prayerOutTick = client.getTickCount();
+				}
+			}
+		}
 		if (attackStyle != null && getAttackTicks() <= 0)
 		{
-			attackStyle = null;
+			// The effect shows 2 ticks before his last hit. If it only just appeared (the same tick
+			// this count ran out), that last hit is still to come.
+			prayerEnding = prayerOutTick >= 0 && prayerOutTick < client.getTickCount();
+			if (prayerHolding && !prayerEnding && attackStyle == AttackStyle.PRAYER)
+			{
+				// Still holding (the long version): one more hit
+				attackStartTick = client.getTickCount();
+				attackLength = config.ocellusPrayerThirdTicks();
+			}
+			else
+			{
+				attackStyle = null;
+				prayerHolding = false;
+			}
 		}
 		if (arenaHitTick >= 0 && client.getTickCount() > arenaHitTick + 2)
 		{
@@ -669,6 +1023,11 @@ public class FinalBoss extends Encounter
 	{
 		int id = event.getGraphicsObject().getId();
 		int tick = client.getTickCount();
+		if (id == VOID_CHAIN_EXPLOSION)
+		{
+			chainExplosions.add(event.getGraphicsObject());
+			voidChainHit();
+		}
 		if (unleashing && id == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P2_AOE_DODGE && tick != lastWaveTick)
 		{
 			// Each wave drops many tiles on the same tick: count the tick once
@@ -689,13 +1048,6 @@ public class FinalBoss extends Encounter
 	public void onProjectileMoved(ProjectileMoved event)
 	{
 		Projectile p = event.getProjectile();
-		if (p.getId() == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_PORTAL_PROJECTILE && portalBeams.add(p)
-			&& p.getSourcePoint() != null && p.getTargetPoint() != null)
-		{
-			lastBeamTick = client.getTickCount();
-			beamsThisTick.add(new int[]{p.getSourcePoint().getX(), p.getSourcePoint().getY(),
-				p.getTargetPoint().getX(), p.getTargetPoint().getY(), p.getSourcePoint().getPlane()});
-		}
 		if (isActive() && loggedProjectiles.add(p))
 		{
 			debug("projectile " + p.getId() + " from " + tile(p.getSourcePoint())
@@ -738,6 +1090,10 @@ public class FinalBoss extends Encounter
 	{
 		GameObject o = event.getGameObject();
 		added(o);
+		if (o.getId() == ObjectID.TFA_OCELLUS_QUADRANT_WALL_ACTIVE)
+		{
+			portalLit(o.getWorldLocation());
+		}
 		if (ACTIVE_ARTIFACTS.contains(o.getId()))
 		{
 			artifacts.put(o.getLocalLocation(), o);
@@ -791,7 +1147,9 @@ public class FinalBoss extends Encounter
 			portals.clear();
 			orangeCrossings.clear();
 			orangeCrossingTick = -1;
-			beamsThisTick.clear();
+			nextCrossing = null;
+			portalSequence.clear();
+			activePortalsThisTick.clear();
 		}
 	}
 

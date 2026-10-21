@@ -153,11 +153,23 @@ public class FinalBossOverlay extends EncounterOverlay
 			renderSoulFragments(graphics, wv);
 		}
 
+		if (config.ocellusVoidChain())
+		{
+			renderVoidChain(graphics);
+		}
+
 		int sweep = encounter.getSweepCount();
 		if (config.ocellusSweepCounter() && ocellus != null && sweep > 0)
 		{
 			// Stacked directly under the tick counter (like Theatre), in a smaller font
 			renderStackedText(graphics, ocellus, Integer.toString(sweep), sweep >= 3 ? FinalBoss.SPECIAL_COLOR : FinalBoss.MELEE_COLOR, 14f);
+		}
+
+		int deflect = encounter.getDeflectTicks();
+		if (config.ocellusDeflectCounter() && ocellus != null && deflect > 0)
+		{
+			// Small, under the attack counter (like the sweep count): green = ranged deflect, red = melee
+			renderStackedText(graphics, ocellus, Integer.toString(deflect), encounter.getDeflectColor(), 14f);
 		}
 
 		int obliteration = encounter.getObliterationTicks();
@@ -332,6 +344,35 @@ public class FinalBossOverlay extends EncounterOverlay
 	}
 
 	/** The true tile of the player the vine has trapped, or the vine's own tile if no one's on it. */
+	/**
+	 * Void chain: the telegraphed players' tiles with the ticks until the next explosion, and each
+	 * explosion's tile as it lands.
+	 */
+	private void renderVoidChain(Graphics2D graphics)
+	{
+		Color c = FinalBoss.VOID_CHAIN_COLOR;
+		for (net.runelite.api.GraphicsObject explosion : encounter.getChainExplosions())
+		{
+			renderPoly(graphics, Perspective.getCanvasTilePoly(client, explosion.getLocation()), c, alpha(c, 70), config.borderWidth());
+		}
+
+		int ticks = encounter.getChainTicks();
+		for (net.runelite.api.Player player : encounter.getChainTargets())
+		{
+			LocalPoint lp = player.getLocalLocation();
+			if (lp == null)
+			{
+				continue;
+			}
+			renderPoly(graphics, Perspective.getCanvasTilePoly(client, lp), c, null, config.borderWidth());
+			if (ticks > 0)
+			{
+				String text = Integer.toString(ticks);
+				renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, c);
+			}
+		}
+	}
+
 	private void renderTrapped(Graphics2D graphics, WorldView wv, NPC vine)
 	{
 		WorldPoint at = vine.getWorldLocation();
@@ -380,6 +421,16 @@ public class FinalBossOverlay extends EncounterOverlay
 	private void renderPortalCrossing(Graphics2D graphics)
 	{
 		// The 2x2 where the orange (silent) portals' lanes cross, as soon as the portals fire
+		// The next one, early: dimmer and in blue
+		WorldPoint next = encounter.getNextCrossing();
+		LocalPoint nextSw = next != null ? LocalPoint.fromWorld(client, next) : null;
+		if (nextSw != null)
+		{
+			Color c = FinalBoss.NEXT_CROSSING_COLOR;
+			LocalPoint middle = nextSw.plus(Perspective.LOCAL_TILE_SIZE / 2, Perspective.LOCAL_TILE_SIZE / 2);
+			renderPoly(graphics, Perspective.getCanvasTileAreaPoly(client, middle, 2), alpha(c, 110), alpha(c, 25), config.borderWidth());
+		}
+
 		for (WorldPoint crossing : encounter.getOrangeCrossings())
 		{
 			LocalPoint sw = LocalPoint.fromWorld(client, crossing);

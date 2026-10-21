@@ -75,6 +75,29 @@ public class Bork extends Encounter
 	private NPC stunnedBork;
 	private int stunTicks;
 
+	/** Stomp: 3 ticks from each stomp animation (counted from the next game tick). */
+	private static final Set<Integer> STOMP_ANIMATIONS = Set.of(
+		AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK01,
+		AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK_CYCLE_AND_OUT01);
+	private static final int STOMP_TICKS = 3;
+	/** Tick the stomp count started (-1 = waiting for the next tick), and whether one is running. */
+	private int stompStartTick = -1;
+	private boolean stomping;
+
+	/** Ticks left on the stomp counter (0 = none). */
+	int getStompTicks()
+	{
+		if (!stomping)
+		{
+			return 0;
+		}
+		if (stompStartTick < 0)
+		{
+			return STOMP_TICKS;
+		}
+		return Math.max(0, STOMP_TICKS - (client.getTickCount() - stompStartTick));
+	}
+
 	/** How long the cannon stuns Bork. */
 	private static final int STUN_TICKS = 16;
 
@@ -83,6 +106,8 @@ public class Bork extends Encounter
 	private static final int SMORK_RANGED_SHOT = SpotanimID.VFX_SMORK_RANGE_ATTACK_PROJANIM01;
 	private static final int SMORK_FIRE_BOMB = SpotanimID.VFX_SMORK_NAPALM_FIRE_PROJANIM01;
 	private static final int SMORK_FIRE = SpotanimID.VFX_SMORK_NAPALM_FIRE_SPOTANIM01;
+	/** The big cannonball a Smork fires at the ground about 20 ticks after each fire bomb. */
+	private static final int SMORK_CANNONBALL = SpotanimID.CANNONBALL_TRAVEL_BIG;
 
 	enum ShotStyle
 	{
@@ -95,6 +120,14 @@ public class Bork extends Encounter
 
 	/** Fire bombs in the air. */
 	private final Set<Projectile> fireBombs = new HashSet<>();
+
+	/** Smorks' normal magic and ranged shots in the air. */
+	private final Set<Projectile> smorkProjectiles = new HashSet<>();
+
+	Set<Projectile> getSmorkProjectiles()
+	{
+		return Collections.unmodifiableSet(smorkProjectiles);
+	}
 
 	/** Fire burning on the ground. */
 	private final Set<GraphicsObject> fires = new HashSet<>();
@@ -141,11 +174,14 @@ public class Bork extends Encounter
 		smorkShots.clear();
 		smorkStyles.clear();
 		fireBombs.clear();
+		smorkProjectiles.clear();
 		smorkTargets.clear();
 		fires.clear();
 		clearStun();
 		calledTarget = null;
 		lastBorkTile = null;
+		stomping = false;
+		stompStartTick = -1;
 		loggedSpotAnims.clear();
 	}
 
@@ -224,6 +260,11 @@ public class Bork extends Encounter
 			if (STUN_ANIMATIONS.contains(animation) || ATTACK_ANIMATIONS.contains(animation))
 			{
 				logPlayers();
+			}
+			if (STOMP_ANIMATIONS.contains(animation))
+			{
+				stomping = true;
+				stompStartTick = -1;
 			}
 			if (STUN_ANIMATIONS.contains(animation))
 			{
@@ -330,7 +371,7 @@ public class Bork extends Encounter
 	{
 		Projectile projectile = event.getProjectile();
 		int id = projectile.getId();
-		if (isActive() && loggedProjectiles.add(projectile) && id != SMORK_MAGIC_SHOT && id != SMORK_RANGED_SHOT)
+		if (isActive() && loggedProjectiles.add(projectile))
 		{
 			debug("projectile " + id + " from " + name(projectile.getSourceActor()) + " to "
 				+ (projectile.getTargetActor() != null ? name(projectile.getTargetActor())
@@ -347,16 +388,22 @@ public class Bork extends Encounter
 				smorkTargets.remove((NPC) projectile.getSourceActor());
 			}
 		}
-		else if ((id == SMORK_MAGIC_SHOT || id == SMORK_RANGED_SHOT) && projectile.getSourceActor() instanceof NPC)
+		else if (id == SMORK_CANNONBALL && projectile.getSourceActor() instanceof NPC
+			&& ((NPC) projectile.getSourceActor()).getId() == NpcID.TFA_SMORK)
 		{
-			NPC source = (NPC) projectile.getSourceActor();
-			if (source.getId() == NpcID.TFA_SMORK)
+			// Marked like the fire bomb: where it lands, and the ticks until it does
+			fireBombs.add(projectile);
+		}
+		else if (id == SMORK_MAGIC_SHOT || id == SMORK_RANGED_SHOT)
+		{
+			// Smork volleys hit every player at once and come with no source actor: credit the
+			// Smork nearest where they start
+			if (smorkProjectiles.add(projectile))
 			{
-				smorkStyles.put(source, id == SMORK_MAGIC_SHOT ? ShotStyle.MAGIC : ShotStyle.RANGED);
-				// The player it's shooting at, if it hasn't picked one yet
-				if (projectile.getTargetActor() instanceof Player)
+				NPC source = projectile.getSourceActor() instanceof NPC ? (NPC) projectile.getSourceActor() : nearestSmork(projectile);
+				if (source != null && source.getId() == NpcID.TFA_SMORK)
 				{
-					smorkTargets.putIfAbsent(source, (Player) projectile.getTargetActor());
+					smorkStyles.put(source, id == SMORK_MAGIC_SHOT ? ShotStyle.MAGIC : ShotStyle.RANGED);
 				}
 			}
 		}
@@ -420,6 +467,7 @@ public class Bork extends Encounter
 
 		// Bombs that have landed, and fire that has burnt out
 		fireBombs.removeIf(p -> p.getRemainingCycles() <= 0);
+		smorkProjectiles.removeIf(p -> p.getRemainingCycles() <= 0);
 		fires.removeIf(GraphicsObject::finished);
 
 		// A Smork that's attacking someone picks them, if it hasn't picked anyone yet
@@ -436,10 +484,45 @@ public class Bork extends Encounter
 		}
 		smorkTargets.keySet().removeIf(NPC::isDead);
 
+		if (stomping && stompStartTick < 0)
+		{
+			stompStartTick = client.getTickCount();
+		}
+		else if (stomping && getStompTicks() <= 0)
+		{
+			stomping = false;
+		}
+
 		if (stunTicks > 0 && --stunTicks == 0)
 		{
 			clearStun();
 		}
+	}
+
+	/** The Smork closest to where a projectile started, or null. */
+	private NPC nearestSmork(Projectile projectile)
+	{
+		WorldView wv = client.getTopLevelWorldView();
+		WorldPoint from = projectile.getSourcePoint();
+		if (wv == null || from == null)
+		{
+			return null;
+		}
+		NPC best = null;
+		int bestDistance = Integer.MAX_VALUE;
+		for (NPC npc : wv.npcs())
+		{
+			if (npc.getId() == NpcID.TFA_SMORK)
+			{
+				int d = npc.getWorldLocation().distanceTo(from);
+				if (d < bestDistance)
+				{
+					best = npc;
+					bestDistance = d;
+				}
+			}
+		}
+		return best;
 	}
 
 	/** Every player's tile, to see where the stomp goes compared to the team. */

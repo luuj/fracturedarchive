@@ -194,6 +194,30 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "borkStompCounter",
+		name = "Stomp counter",
+		description = "Count down the 3 ticks of each of Bork's stomps (in red)",
+		position = 2,
+		section = borkSection
+	)
+	default boolean borkStompCounter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "smorkProjectiles",
+		name = "Smork projectiles",
+		description = "Show the ticks until each Smork magic (cyan) or ranged (green) shot aimed at you hits, on the shot itself",
+		position = 2,
+		section = borkSection
+	)
+	default boolean smorkProjectiles()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "smorkStyleColors",
 		name = "Color shots by style",
 		description = "Color each Smork's shot counter by its last shot: magic or ranged (red once a bomb is due)",
@@ -208,7 +232,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "smorkFireBombs",
 		name = "Highlight fire bombs",
-		description = "Mark where each fire bomb will land while it's in the air, then the fire while it burns",
+		description = "Mark where each fire bomb and big cannonball will land while it's in the air, then the fire while it burns",
 		position = 11,
 		section = borkSection
 	)
@@ -386,12 +410,12 @@ public interface FracturedArchiveConfig extends Config
 		keyName = "ocellusPrayerFirstTicks",
 		name = "Prayer attack ticks",
 		description = "Counter length for the prayer turn-off attack, from when he starts it (14869) to its hit",
-		position = 4,
+		position = 100,
 		section = finalbossSection
 	)
 	default int ocellusPrayerFirstTicks()
 	{
-		return 5;
+		return 6;
 	}
 
 	@Range(min = 1, max = 15)
@@ -399,10 +423,23 @@ public interface FracturedArchiveConfig extends Config
 		keyName = "ocellusPrayerSecondTicks",
 		name = "Prayer second hit ticks",
 		description = "Counter length for the second hit when he holds the prayer attack (from 14870)",
-		position = 4,
+		position = 101,
 		section = finalbossSection
 	)
 	default int ocellusPrayerSecondTicks()
+	{
+		return 4;
+	}
+
+	@Range(min = 1, max = 15)
+	@ConfigItem(
+		keyName = "ocellusPrayerThirdTicks",
+		name = "Prayer third hit ticks",
+		description = "Counter length for the extra hit in the long version of the held prayer attack",
+		position = 102,
+		section = finalbossSection
+	)
+	default int ocellusPrayerThirdTicks()
 	{
 		return 3;
 	}
@@ -439,6 +476,30 @@ public interface FracturedArchiveConfig extends Config
 		section = finalbossSection
 	)
 	default boolean ocellusObliterationCounter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusDeflectCounter",
+		name = "Deflect counter",
+		description = "Phase 4: count down the deflect under his attack counter (green = ranged, red = melee)",
+		position = 4,
+		section = finalbossSection
+	)
+	default boolean ocellusDeflectCounter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusVoidChain",
+		name = "Void chain",
+		description = "Phase 4: outline players with the void chain warning, count down to each of its 6 explosions, and mark where they land (purple)",
+		position = 4,
+		section = finalbossSection
+	)
+	default boolean ocellusVoidChain()
 	{
 		return true;
 	}

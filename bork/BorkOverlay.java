@@ -22,6 +22,7 @@ public class BorkOverlay extends EncounterOverlay
 
 	/** Colors (the colors you had saved). */
 	private static final Color STUN_COLOR = Color.CYAN;
+	private static final Color STOMP_COLOR = Color.RED;
 	private static final Color MAGIC_COLOR = Color.CYAN;
 	private static final Color RANGED_COLOR = Color.GREEN;
 	private static final Color FIRE_BORDER = new Color(255, 100, 0, 200);
@@ -66,6 +67,25 @@ public class BorkOverlay extends EncounterOverlay
 			}
 		}
 
+		if (config.smorkProjectiles())
+		{
+			// Like Projectile Ticks: only shots aimed at you, the ticks until they hit on the shot itself
+			for (Projectile shot : encounter.getSmorkProjectiles())
+			{
+				int cycles = shot.getRemainingCycles();
+				if (cycles <= 0 || shot.getTargetActor() != client.getLocalPlayer())
+				{
+					continue;
+				}
+				net.runelite.api.Point p = Perspective.localToCanvas(client, (int) shot.getX(), (int) shot.getY(), (int) shot.getZ());
+				if (p != null)
+				{
+					renderText(graphics, p, Integer.toString((cycles + 29) / 30),
+						shot.getId() == net.runelite.api.gameval.SpotanimID.VFX_SMORK_MAGE_ATTACK_PROJANIM01 ? MAGIC_COLOR : RANGED_COLOR);
+				}
+			}
+		}
+
 		if (config.smorkFireBombs())
 		{
 			for (Projectile bomb : encounter.getFireBombs())
@@ -94,6 +114,15 @@ public class BorkOverlay extends EncounterOverlay
 		{
 			String text = Integer.toString(encounter.getStunTicks());
 			renderText(graphics, bork.getCanvasTextLocation(graphics, text, config.textZ()), text, STUN_COLOR);
+		}
+
+		// The stomp counter above Bork
+		NPC boss = encounter.getBoss();
+		int stomp = encounter.getStompTicks();
+		if (config.borkStompCounter() && boss != null && stomp > 0 && bork == null)
+		{
+			String text = Integer.toString(stomp);
+			renderText(graphics, boss.getCanvasTextLocation(graphics, text, config.textZ()), text, STOMP_COLOR);
 		}
 
 		if (!encounter.isActive())
