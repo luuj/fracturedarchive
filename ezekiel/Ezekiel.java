@@ -6,22 +6,17 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import lombok.Getter;
 import net.runelite.api.CollisionDataFlag;
 import net.runelite.api.Constants;
-import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
-import net.runelite.api.GraphicsObject;
 import net.runelite.api.NPC;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
-import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
-import net.runelite.api.events.GraphicsObjectCreated;
 import net.runelite.api.events.NpcChanged;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
@@ -129,10 +124,6 @@ public class Ezekiel extends Encounter
 	{
 		super.onNpcSpawned(event);
 		NPC npc = event.getNpc();
-		if (isActive() || !swords.isEmpty())
-		{
-			debug("npc " + npc.getId() + " (" + npc.getName() + ") at " + tile(npc.getWorldLocation()));
-		}
 		if (npc.getId() == SWORD_ID)
 		{
 			swords.put(npc, new SwordTrack(client.getTickCount()));
@@ -162,9 +153,139 @@ public class Ezekiel extends Encounter
 		swords.remove(event.getNpc());
 	}
 
+	// Finale logging: everything that happens during the finale goes to the log file, to find
+	// what marks the sword the lightning misses
+
+	private boolean inFinale()
+	{
+		return finaleStartTick >= 0;
+	}
+
+	private void debug(String message)
+	{
+		log.info("[Ezekiel t{} finale+{}] {}", client.getTickCount(), getFinaleTicks(), message);
+	}
+
+	private static String tile(net.runelite.api.coords.WorldPoint p)
+	{
+		return p == null ? "?" : p.getX() + "," + p.getY();
+	}
+
+	private static String who(net.runelite.api.Actor actor)
+	{
+		if (actor == null)
+		{
+			return "nobody";
+		}
+		return (actor instanceof NPC ? "npc " + ((NPC) actor).getId() + " (" + actor.getName() + ")" : actor.getName())
+			+ "@" + tile(actor.getWorldLocation());
+	}
+
+	/** Effects already showing on each actor, so each is logged once when it appears and ends. */
+	private final Map<net.runelite.api.Actor, Set<Integer>> shownSpotAnims = new java.util.WeakHashMap<>();
+	private final Set<net.runelite.api.Projectile> loggedProjectiles = Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
+	private void recordFinale()
+	{
+		WorldView wv = client.getTopLevelWorldView();
+		if (wv == null)
+		{
+			return;
+		}
+		java.util.List<net.runelite.api.Actor> actors = new java.util.ArrayList<>();
+		wv.npcs().forEach(actors::add);
+		wv.players().forEach(actors::add);
+		for (net.runelite.api.Actor actor : actors)
+		{
+			Set<Integer> now = new java.util.HashSet<>();
+			for (net.runelite.api.ActorSpotAnim spotAnim : actor.getSpotAnims())
+			{
+				now.add(spotAnim.getId());
+			}
+			Set<Integer> before = shownSpotAnims.getOrDefault(actor, Set.of());
+			for (int id : now)
+			{
+				if (!before.contains(id))
+				{
+					debug("spotanim " + id + " on " + who(actor));
+				}
+			}
+			for (int id : before)
+			{
+				if (!now.contains(id))
+				{
+					debug("spotanim " + id + " ended on " + who(actor));
+				}
+			}
+			if (now.isEmpty())
+			{
+				shownSpotAnims.remove(actor);
+			}
+			else
+			{
+				shownSpotAnims.put(actor, now);
+			}
+		}
+	}
+
+	private void logFinaleStart()
+	{
+		StringBuilder sb = new StringBuilder("finale start: ezekiel " + (boss != null ? who(boss) + " facing " + boss.getOrientation() : "?"));
+		for (NPC sword : swords.keySet())
+		{
+			sb.append(" | sword ").append(who(sword)).append(" facing ").append(sword.getOrientation());
+		}
+		debug(sb.toString());
+		shownSpotAnims.clear();
+	}
+
+	@Override
+	public void onProjectileMoved(net.runelite.api.events.ProjectileMoved event)
+	{
+		net.runelite.api.Projectile p = event.getProjectile();
+		if (inFinale() && loggedProjectiles.add(p))
+		{
+			debug("projectile " + p.getId() + " from " + who(p.getSourceActor()) + " " + tile(p.getSourcePoint())
+				+ " to " + (p.getTargetActor() != null ? who(p.getTargetActor()) : tile(p.getTargetPoint()))
+				+ ", " + (p.getRemainingCycles() + 29) / 30 + " ticks");
+		}
+	}
+
+	@Override
+	public void onGraphicsObjectCreated(net.runelite.api.events.GraphicsObjectCreated event)
+	{
+		if (inFinale())
+		{
+			net.runelite.api.GraphicsObject g = event.getGraphicsObject();
+			debug("gfx " + g.getId() + " at " + tile(net.runelite.api.coords.WorldPoint.fromLocal(client, g.getLocation())));
+		}
+	}
+
+	@Override
+	public void onGameObjectSpawned(net.runelite.api.events.GameObjectSpawned event)
+	{
+		if (inFinale())
+		{
+			debug("object " + event.getGameObject().getId() + " at " + tile(event.getGameObject().getWorldLocation()));
+		}
+	}
+
+	@Override
+	public void onGroundObjectSpawned(net.runelite.api.events.GroundObjectSpawned event)
+	{
+		if (inFinale())
+		{
+			debug("ground object " + event.getGroundObject().getId() + " at " + tile(event.getGroundObject().getWorldLocation()));
+		}
+	}
+
 	@Override
 	public void onGameTick(GameTick event)
 	{
+		if (inFinale())
+		{
+			recordFinale();
+		}
 		if (attackTicks > 0 && --attackTicks == 0)
 		{
 			attackAnimation = -1;
@@ -192,10 +313,9 @@ public class Ezekiel extends Encounter
 		}
 		NPC npc = (NPC) event.getActor();
 		int animation = npc.getAnimation();
-
-		if (bossIds().contains(npc.getId()))
+		if (inFinale())
 		{
-			debug("anim " + animation + " on " + npc.getName() + " (" + npc.getId() + ") at " + tile(npc.getWorldLocation()));
+			debug("anim " + animation + " on " + who(npc) + " facing " + npc.getOrientation());
 		}
 
 		if (!bossIds().contains(npc.getId()))
@@ -230,6 +350,7 @@ public class Ezekiel extends Encounter
 				starShownUntil = -1;
 				// No attack counter during the finale
 				finaleStartTick = client.getTickCount();
+				logFinaleStart();
 				attackTicks = 0;
 				attackAnimation = -1;
 				break;
@@ -238,34 +359,20 @@ public class Ezekiel extends Encounter
 				if (finaleStartTick < 0)
 				{
 					finaleStartTick = client.getTickCount();
+					logFinaleStart();
 				}
 				break;
 			case AnimationID.NPC_EZEKIEL_FINALE_DEATH01:
 			case AnimationID.NPC_EZEKIEL_DEATH01:
+				if (inFinale())
+				{
+					debug("finale over (" + animation + ")");
+				}
 				finaleStartTick = -1;
+				shownSpotAnims.clear();
 				break;
 			default:
 				break;
-		}
-	}
-
-	@Override
-	public void onGraphicsObjectCreated(GraphicsObjectCreated event)
-	{
-		if (isActive() || !swords.isEmpty())
-		{
-			GraphicsObject g = event.getGraphicsObject();
-			debug("gfx " + g.getId() + " at " + tile(WorldPoint.fromLocal(client, g.getLocation())));
-		}
-	}
-
-	@Override
-	public void onGameObjectSpawned(GameObjectSpawned event)
-	{
-		if (isActive())
-		{
-			GameObject o = event.getGameObject();
-			debug("object " + o.getId() + " at " + tile(o.getWorldLocation()));
 		}
 	}
 
@@ -297,18 +404,6 @@ public class Ezekiel extends Encounter
 			default:
 				return SPECIAL_COLOR;
 		}
-	}
-
-	private void debug(String message)
-	{
-		String finale = finaleStartTick >= 0 ? " finale+" + getFinaleTicks() : "";
-		String line = "[Ezekiel t" + client.getTickCount() + finale + "] " + message;
-		log.info("{}", line);
-	}
-
-	private static String tile(WorldPoint p)
-	{
-		return p == null ? "?" : p.getX() + "," + p.getY();
 	}
 
 	@Override

@@ -16,6 +16,7 @@ import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Projectile;
 import net.runelite.api.WorldView;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
@@ -75,27 +76,170 @@ public class Bork extends Encounter
 	private NPC stunnedBork;
 	private int stunTicks;
 
-	/** Stomp: 3 ticks from each stomp animation (counted from the next game tick). */
+	/**
+	 * Stomps: 4 of them, 3 ticks apart. The first lands 3 ticks after he starts the stomp
+	 * (14549), the next 3 after that, and so on. 14550 and 14551 come 1 tick before a stomp lands,
+	 * so they keep the count in step if the start was missed.
+	 */
 	private static final Set<Integer> STOMP_ANIMATIONS = Set.of(
 		AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK01,
 		AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK_CYCLE_AND_OUT01);
-	private static final int STOMP_TICKS = 3;
-	/** Tick the stomp count started (-1 = waiting for the next tick), and whether one is running. */
-	private int stompStartTick = -1;
-	private boolean stomping;
+	private static final int STOMP_GAP = 3;
+	private static final int STOMP_COUNT = 4;
+	/** The tick the next stomp lands (-1 = none coming), and how many are still to come. */
+	private int nextStompTick = -1;
+	private int stompsLeft;
 
-	/** Ticks left on the stomp counter (0 = none). */
+	/** Ticks until the next stomp lands (0 = none coming). */
 	int getStompTicks()
 	{
-		if (!stomping)
+		return nextStompTick < 0 ? 0 : Math.max(0, nextStompTick - client.getTickCount());
+	}
+
+	/**
+	 * Stomp safe spot. After every stun Bork stomps 4 times (starting about 17 ticks after the
+	 * stun), hitting the whole room except the "shadow" behind the Smork, as seen from Bork.
+	 * He doesn't move from the stun to the stomp, so it's known as soon as he's stunned.
+	 */
+	private final Set<WorldPoint> stompSafeTiles = new HashSet<>();
+	private int stompSafeUntil = -1;
+
+	Set<WorldPoint> getStompSafeTiles()
+	{
+		return Collections.unmodifiableSet(stompSafeTiles);
+	}
+
+	private void updateStompSafeTiles()
+	{
+		stompSafeTiles.clear();
+		WorldView wv = client.getTopLevelWorldView();
+		if (boss == null || wv == null || (stunTicks <= 0 && client.getTickCount() > stompSafeUntil))
 		{
-			return 0;
+			return;
 		}
-		if (stompStartTick < 0)
+
+		java.util.List<WorldPoint> smorks = new java.util.ArrayList<>();
+		for (NPC npc : wv.npcs())
 		{
-			return STOMP_TICKS;
+			if (npc.getId() == NpcID.TFA_SMORK && !npc.isDead())
+			{
+				smorks.add(npc.getWorldLocation());
+			}
 		}
-		return Math.max(0, STOMP_TICKS - (client.getTickCount() - stompStartTick));
+		if (smorks.isEmpty())
+		{
+			return;
+		}
+
+		// Bork stomps from the corner at the middle of his 4x4
+		WorldPoint b = boss.getWorldLocation();
+		double ox = b.getX() + 2;
+		double oy = b.getY() + 2;
+		net.runelite.api.CollisionData[] maps = wv.getCollisionMaps();
+		int[][] flags = maps != null ? maps[wv.getPlane()].getFlags() : null;
+
+		// Only the ring of tiles right around each Smork: where to stand to get back to Bork
+		for (WorldPoint smork : smorks)
+		{
+			for (int x = smork.getX() - 1; x <= smork.getX() + 3; x++)
+			{
+				for (int y = smork.getY() - 1; y <= smork.getY() + 3; y++)
+				{
+					WorldPoint tile = new WorldPoint(x, y, b.getPlane());
+					if (!isSmorkTile(smorks, x, y) && !isBlocked(flags, tile) && inShadow(ox, oy, x, y, smork))
+					{
+						stompSafeTiles.add(tile);
+					}
+				}
+			}
+		}
+	}
+
+	private static boolean isSmorkTile(java.util.List<WorldPoint> smorks, int x, int y)
+	{
+		for (WorldPoint s : smorks)
+		{
+			if (x >= s.getX() && x < s.getX() + 3 && y >= s.getY() && y < s.getY() + 3)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean isBlocked(int[][] flags, WorldPoint tile)
+	{
+		LocalPoint lp = LocalPoint.fromWorld(client, tile);
+		if (lp == null || flags == null)
+		{
+			return lp == null;
+		}
+		int sx = lp.getSceneX();
+		int sy = lp.getSceneY();
+		if (sx < 0 || sy < 0 || sx >= flags.length || sy >= flags[sx].length)
+		{
+			return true;
+		}
+		return (flags[sx][sy] & net.runelite.api.CollisionDataFlag.BLOCK_MOVEMENT_FULL) != 0;
+	}
+
+	/**
+	 * Safe if enough of the tile is hidden behind the Smork from where Bork stomps (3 of 9 points
+	 * across it). Fitted to the tiles right around the Smork in the logged stomps: it never marked
+	 * a hit tile safe, and left out 8 of the 89 safe ones.
+	 */
+	private static boolean inShadow(double ox, double oy, int x, int y, WorldPoint smork)
+	{
+		double x0 = smork.getX() + 0.5;
+		double y0 = smork.getY() + 0.5;
+		double x1 = smork.getX() + 2.5;
+		double y1 = smork.getY() + 2.5;
+		int hidden = 0;
+		for (double px : new double[]{0.1, 0.5, 0.9})
+		{
+			for (double py : new double[]{0.1, 0.5, 0.9})
+			{
+				if (segmentHitsBox(ox, oy, x + px, y + py, x0, y0, x1, y1))
+				{
+					hidden++;
+				}
+			}
+		}
+		return hidden >= 3;
+	}
+
+	/** Whether the segment from (ax, ay) to (bx, by) passes through the box. */
+	private static boolean segmentHitsBox(double ax, double ay, double bx, double by,
+		double x0, double y0, double x1, double y1)
+	{
+		double tMin = 0;
+		double tMax = 1;
+		double[] d = {bx - ax, by - ay};
+		double[] a = {ax, ay};
+		double[] lo = {x0, y0};
+		double[] hi = {x1, y1};
+		for (int i = 0; i < 2; i++)
+		{
+			if (Math.abs(d[i]) < 1e-9)
+			{
+				if (a[i] < lo[i] || a[i] > hi[i])
+				{
+					return false;
+				}
+			}
+			else
+			{
+				double t1 = (lo[i] - a[i]) / d[i];
+				double t2 = (hi[i] - a[i]) / d[i];
+				tMin = Math.max(tMin, Math.min(t1, t2));
+				tMax = Math.min(tMax, Math.max(t1, t2));
+				if (tMin > tMax)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	/** How long the cannon stuns Bork. */
@@ -180,8 +324,10 @@ public class Bork extends Encounter
 		clearStun();
 		calledTarget = null;
 		lastBorkTile = null;
-		stomping = false;
-		stompStartTick = -1;
+		stompSafeTiles.clear();
+		stompSafeUntil = -1;
+		nextStompTick = -1;
+		stompsLeft = 0;
 		loggedSpotAnims.clear();
 	}
 
@@ -263,8 +409,17 @@ public class Bork extends Encounter
 			}
 			if (STOMP_ANIMATIONS.contains(animation))
 			{
-				stomping = true;
-				stompStartTick = -1;
+				// A stomp lands next tick: 14550 is the first of the four, 14551 the third
+				nextStompTick = client.getTickCount() + 1;
+				stompsLeft = animation == AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK01 ? STOMP_COUNT : STOMP_COUNT - 2;
+				stompSafeUntil = client.getTickCount() + 12;
+			}
+			else if (animation == AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK_IN01
+				|| animation == AnimationID.NPC_BORK_IDLE_TO_ENRAGED_STOMP_ATTACK_IN01)
+			{
+				nextStompTick = client.getTickCount() + STOMP_GAP;
+				stompsLeft = STOMP_COUNT;
+				stompSafeUntil = client.getTickCount() + 14;
 			}
 			if (STUN_ANIMATIONS.contains(animation))
 			{
@@ -447,6 +602,8 @@ public class Bork extends Encounter
 	@Override
 	public void onGameTick(GameTick event)
 	{
+		updateStompSafeTiles();
+
 		// Where Bork moves to, and his spot animations (the stomp may show on him first)
 		if (boss != null)
 		{
@@ -484,13 +641,17 @@ public class Bork extends Encounter
 		}
 		smorkTargets.keySet().removeIf(NPC::isDead);
 
-		if (stomping && stompStartTick < 0)
+		if (nextStompTick >= 0 && client.getTickCount() >= nextStompTick)
 		{
-			stompStartTick = client.getTickCount();
-		}
-		else if (stomping && getStompTicks() <= 0)
-		{
-			stomping = false;
+			// That one landed; on to the next, until all four are done
+			if (--stompsLeft > 0)
+			{
+				nextStompTick += STOMP_GAP;
+			}
+			else
+			{
+				nextStompTick = -1;
+			}
 		}
 
 		if (stunTicks > 0 && --stunTicks == 0)

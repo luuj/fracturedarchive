@@ -50,7 +50,7 @@ public class FinalBoss extends Encounter
 	static final Color DANGER_COLOR = new Color(255, 0, 0, 75);
 	static final Color ARTIFACT_COLOR = Color.WHITE;
 	static final Color PORTAL_CROSSING_COLOR = new Color(255, 200, 0);
-	static final Color NEXT_CROSSING_COLOR = new Color(80, 160, 255);
+	static final Color NEXT_CROSSING_COLOR = new Color(160, 210, 255);
 	static final Color SOUL_FRAGMENT_COLOR = Color.CYAN;
 	static final Color TRAPPED_COLOR = Color.GREEN;
 	static final Color AUGMENTER_COLOR = new Color(255, 200, 0);
@@ -96,6 +96,7 @@ public class FinalBoss extends Encounter
 		AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC, 4,
 		AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH, 5,
 		AnimationID.NPC_OCELLUS_PHASE3_MELEE_HYBRID, 6);
+	// Basic melee and sweep: 4 and 5 line up in game (his swings are 3 and 4 ticks apart)
 	// The prayer special's two hits use the "Prayer attack" settings (see onAnimationChanged)
 
 	/** Void degen bombs and puddles on the floor: stand off these. */
@@ -372,7 +373,9 @@ public class FinalBoss extends Encounter
 	/** When the last chain finished, so a telegraph still fading out doesn't start another. */
 	private int chainEndTick = -100;
 	/** Explosions on the ground. */
-	private final Set<net.runelite.api.GraphicsObject> chainExplosions = new java.util.HashSet<>();
+	private final Map<WorldPoint, Integer> chainExplosions = new HashMap<>();
+	/** Each explosion's tile stays marked this long (until the next one lands). */
+	private static final int VOID_CHAIN_SHOWN = 2;
 
 	Set<net.runelite.api.Player> getChainTargets()
 	{
@@ -385,14 +388,14 @@ public class FinalBoss extends Encounter
 		return chainNextHitTick < 0 ? 0 : Math.max(0, chainNextHitTick - client.getTickCount());
 	}
 
-	Set<net.runelite.api.GraphicsObject> getChainExplosions()
+	Set<WorldPoint> getChainExplosions()
 	{
-		return chainExplosions;
+		return chainExplosions.keySet();
 	}
 
 	private void checkVoidChain()
 	{
-		chainExplosions.removeIf(net.runelite.api.GraphicsObject::finished);
+		chainExplosions.values().removeIf(t -> client.getTickCount() - t >= VOID_CHAIN_SHOWN);
 		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
 		if (wv == null)
 		{
@@ -453,6 +456,7 @@ public class FinalBoss extends Encounter
 	private boolean prayerHolding;
 	private boolean prayerEnding;
 	private int prayerOutTick = -1;
+	private int prayerHoldTick = -1;
 	/** What he says to start it: "Obliteration" or "Run" (as a whole word, so not "rune"). */
 	private static final java.util.regex.Pattern OBLITERATION_PHRASES =
 		java.util.regex.Pattern.compile("obliteration|\\brun\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
@@ -915,6 +919,7 @@ public class FinalBoss extends Encounter
 			prayerHolding = true;
 			prayerEnding = false;
 			prayerOutTick = -1;
+			prayerHoldTick = client.getTickCount();
 		}
 
 		switch (animation)
@@ -952,7 +957,8 @@ public class FinalBoss extends Encounter
 			// shown is always the full length, whichever point in the tick the animation arrives. Attacks with a confirmed length use
 			// it; the rest use DEFAULT_ATTACK_TICKS.
 			attackStyle = style;
-			// Pinned to the next game tick (see onGameTick)
+			// Pinned to the next game tick (see onGameTick): his animations arrive at the very end
+			// of a tick, so counting from that tick would start a number short
 			attackStartTick = -1;
 			attackLength = animation == AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN
 				? config.ocellusPrayerFirstTicks()
@@ -996,12 +1002,13 @@ public class FinalBoss extends Encounter
 		}
 		if (attackStyle != null && getAttackTicks() <= 0)
 		{
-			// The effect shows 2 ticks before his last hit. If it only just appeared (the same tick
-			// this count ran out), that last hit is still to come.
-			prayerEnding = prayerOutTick >= 0 && prayerOutTick < client.getTickCount();
-			if (prayerHolding && !prayerEnding && attackStyle == AttackStyle.PRAYER)
+			// His "prayer out" effect comes 1 tick after the hold in the short version and 4 ticks
+			// after it in the long one (which has one more hit, 3 ticks later)
+			boolean longVersion = prayerOutTick < 0 || prayerOutTick - prayerHoldTick >= 3;
+			if (prayerHolding && !prayerEnding && longVersion && attackStyle == AttackStyle.PRAYER)
 			{
-				// Still holding (the long version): one more hit
+				// The long version: one more hit
+				prayerEnding = true;
 				attackStartTick = client.getTickCount();
 				attackLength = config.ocellusPrayerThirdTicks();
 			}
@@ -1025,7 +1032,7 @@ public class FinalBoss extends Encounter
 		int tick = client.getTickCount();
 		if (id == VOID_CHAIN_EXPLOSION)
 		{
-			chainExplosions.add(event.getGraphicsObject());
+			chainExplosions.put(WorldPoint.fromLocal(client, event.getGraphicsObject().getLocation()), tick);
 			voidChainHit();
 		}
 		if (unleashing && id == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P2_AOE_DODGE && tick != lastWaveTick)

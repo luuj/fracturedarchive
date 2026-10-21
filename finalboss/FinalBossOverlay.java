@@ -351,9 +351,9 @@ public class FinalBossOverlay extends EncounterOverlay
 	private void renderVoidChain(Graphics2D graphics)
 	{
 		Color c = FinalBoss.VOID_CHAIN_COLOR;
-		for (net.runelite.api.GraphicsObject explosion : encounter.getChainExplosions())
+		for (WorldPoint explosion : encounter.getChainExplosions())
 		{
-			renderPoly(graphics, Perspective.getCanvasTilePoly(client, explosion.getLocation()), c, alpha(c, 70), config.borderWidth());
+			renderTile(graphics, explosion, c, alpha(c, 70), config.borderWidth());
 		}
 
 		int ticks = encounter.getChainTicks();
@@ -428,7 +428,7 @@ public class FinalBossOverlay extends EncounterOverlay
 		{
 			Color c = FinalBoss.NEXT_CROSSING_COLOR;
 			LocalPoint middle = nextSw.plus(Perspective.LOCAL_TILE_SIZE / 2, Perspective.LOCAL_TILE_SIZE / 2);
-			renderPoly(graphics, Perspective.getCanvasTileAreaPoly(client, middle, 2), alpha(c, 110), alpha(c, 25), config.borderWidth());
+			renderPoly(graphics, Perspective.getCanvasTileAreaPoly(client, middle, 2), alpha(c, 230), alpha(c, 90), config.borderWidth());
 		}
 
 		for (WorldPoint crossing : encounter.getOrangeCrossings())

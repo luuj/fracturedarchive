@@ -196,11 +196,23 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "borkStompCounter",
 		name = "Stomp counter",
-		description = "Count down the 3 ticks of each of Bork's stomps (in red)",
+		description = "Count down to each of Bork's 4 stomps, 3 ticks apart (in red)",
 		position = 2,
 		section = borkSection
 	)
 	default boolean borkStompCounter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "borkStompSafeSpot",
+		name = "Stomp safe spot",
+		description = "From the stun until his 4 stomps finish, highlight the safe tiles right next to the Smork (green)",
+		position = 2,
+		section = borkSection
+	)
+	default boolean borkStompSafeSpot()
 	{
 		return true;
 	}

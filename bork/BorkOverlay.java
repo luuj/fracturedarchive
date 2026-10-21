@@ -23,6 +23,8 @@ public class BorkOverlay extends EncounterOverlay
 	/** Colors (the colors you had saved). */
 	private static final Color STUN_COLOR = Color.CYAN;
 	private static final Color STOMP_COLOR = Color.RED;
+	private static final Color STOMP_SAFE_BORDER = new Color(0, 255, 0, 150);
+	private static final Color STOMP_SAFE_FILL = new Color(0, 255, 0, 40);
 	private static final Color MAGIC_COLOR = Color.CYAN;
 	private static final Color RANGED_COLOR = Color.GREEN;
 	private static final Color FIRE_BORDER = new Color(255, 100, 0, 200);
@@ -64,6 +66,14 @@ public class BorkOverlay extends EncounterOverlay
 					color = style == Bork.ShotStyle.MAGIC ? MAGIC_COLOR : RANGED_COLOR;
 				}
 				renderText(graphics, smork.getCanvasTextLocation(graphics, text, config.textZ()), text, color);
+			}
+		}
+
+		if (config.borkStompSafeSpot())
+		{
+			for (WorldPoint tile : encounter.getStompSafeTiles())
+			{
+				renderTile(graphics, tile, STOMP_SAFE_BORDER, STOMP_SAFE_FILL, 1);
 			}
 		}
 
