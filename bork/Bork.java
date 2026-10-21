@@ -63,25 +63,8 @@ public class Bork extends Encounter
 		AnimationID.NPC_BORK_IDLE_TO_ENRAGED_STOMP_ATTACK_IN01,
 		AnimationID.NPC_BORK_IDLE_TO_ENRAGED_GONG_ATTACK_IN01);
 
-	// The belly drum
-	private static final int BELLY_DRUM = AnimationID.NPC_BORK_GONG_MELEE01;
-
-	/** Ticks taken off Bork's attack speed by the Smorks shouting "faster" this fight. */
-	private int speedUps;
-
 	/** The player Bork last called out in chat, or null. */
 	private Player calledTarget;
-
-	/** Ticks between belly drums: 8 at the start, then 7, 5 and 4 after each "faster" from the Smorks or "angry" from Bork. */
-	private static final int[] ATTACK_SPEEDS = {8, 7, 5, 4};
-
-	/** Shouts this close together are the same speed-up. */
-	private static final int SPEED_UP_WINDOW = 3;
-	private int lastSpeedUpTick = -1;
-
-	/** Bork after a belly drum, and the ticks until the next one (0 = no counter). */
-	private NPC attackingBork;
-	private int attackTicks;
 
 	/** Bork while stunned, and the ticks left (0 = not stunned). */
 	private NPC stunnedBork;
@@ -151,26 +134,7 @@ public class Bork extends Encounter
 		smorkTargets.clear();
 		fires.clear();
 		clearStun();
-		clearAttack();
-		speedUps = 0;
 		calledTarget = null;
-		lastSpeedUpTick = -1;
-	}
-
-	/** Bork's current ticks between belly drums. */
-	int getAttackSpeed()
-	{
-		return ATTACK_SPEEDS[Math.min(speedUps, ATTACK_SPEEDS.length - 1)];
-	}
-
-	NPC getAttackingBork()
-	{
-		return attackTicks > 0 ? attackingBork : null;
-	}
-
-	int getAttackTicks()
-	{
-		return attackTicks;
 	}
 
 	NPC getStunnedBork()
@@ -256,17 +220,6 @@ public class Bork extends Encounter
 			{
 				clearStun();
 			}
-
-			if (animation == BELLY_DRUM)
-			{
-				attackingBork = npc;
-				attackTicks = getAttackSpeed();
-			}
-			else if (STUN_ANIMATIONS.contains(animation))
-			{
-				// No attacks while stunned
-				clearAttack();
-			}
 			return;
 		}
 
@@ -288,12 +241,7 @@ public class Bork extends Encounter
 	@Override
 	public void onOverheadTextChanged(OverheadTextChanged event)
 	{
-		// The Smorks shout it (Bork too, just in case)
 		Actor actor = event.getActor();
-		if (actor instanceof NPC && (((NPC) actor).getId() == NpcID.TFA_SMORK || ((NPC) actor).getId() == NpcID.TFA_BORK))
-		{
-			checkSpeedUp(event.getOverheadText());
-		}
 		if (actor instanceof NPC && ((NPC) actor).getId() == NpcID.TFA_BORK)
 		{
 			checkCalledTarget(event.getOverheadText());
@@ -303,14 +251,10 @@ public class Bork extends Encounter
 	@Override
 	public void onChatMessage(ChatMessage event)
 	{
-		// The shout can also come through as NPC chat ("bork" also matches "Smork")
+		// Bork's call-out can also come through as NPC chat
 		if (event.getType() == ChatMessageType.NPC_SAY || event.getType() == ChatMessageType.GAMEMESSAGE)
 		{
 			String name = event.getName();
-			if (name == null || name.isEmpty() || name.toLowerCase().contains("mork") || name.toLowerCase().contains("bork"))
-			{
-				checkSpeedUp(event.getMessage());
-			}
 			// Bork himself, not a Smork
 			String lower = name == null ? "" : Text.removeTags(name).toLowerCase();
 			if (lower.contains("bork") && !lower.contains("smork"))
@@ -360,23 +304,6 @@ public class Bork extends Encounter
 			return calledTarget;
 		}
 		return super.getTarget();
-	}
-
-	private void checkSpeedUp(String text)
-	{
-		// A Smork shouting "faster" or Bork getting "angry" both mean he speeds up. Several can
-		// shout around the same time, so it only counts once within SPEED_UP_WINDOW ticks.
-		if (text == null)
-		{
-			return;
-		}
-		String lower = text.toLowerCase();
-		boolean shout = lower.contains("faster") || lower.contains("angry");
-		if (shout && (lastSpeedUpTick < 0 || client.getTickCount() - lastSpeedUpTick > SPEED_UP_WINDOW))
-		{
-			lastSpeedUpTick = client.getTickCount();
-			speedUps++;
-		}
 	}
 
 	@Override
@@ -443,17 +370,6 @@ public class Bork extends Encounter
 		{
 			clearStun();
 		}
-
-		if (attackTicks > 0 && --attackTicks == 0)
-		{
-			clearAttack();
-		}
-	}
-
-	private void clearAttack()
-	{
-		attackingBork = null;
-		attackTicks = 0;
 	}
 
 	private void clearStun()

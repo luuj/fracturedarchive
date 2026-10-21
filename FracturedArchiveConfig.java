@@ -313,31 +313,6 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "borkAttackCounter",
-		name = "Attack counter",
-		description = "Count down to Bork's next belly drum (gong) attack",
-		position = 5,
-		section = borkSection
-	)
-	default boolean borkAttackCounter()
-	{
-		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "borkAttackColor",
-		name = "Attack color",
-		description = "Color of the attack counter",
-		position = 7,
-		section = borkSection
-	)
-	default Color borkAttackColor()
-	{
-		return Color.WHITE;
-	}
-
-	@ConfigItem(
 		keyName = "smorkStyleColors",
 		name = "Color shots by style",
 		description = "Color each Smork's shot counter by its last shot: magic or ranged (red once a bomb is due)",
@@ -454,19 +429,6 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "ezekielLaneTicks",
-		name = "Show lane ticks",
-		description = "Only show a sword's lane this many ticks before it goes off",
-		position = 3,
-		section = ezekielSection
-	)
-	@Range(min = 1, max = 30)
-	default int ezekielLaneTicks()
-	{
-		return 5;
-	}
-
-	@ConfigItem(
 		keyName = "ezekielSwordTimer",
 		name = "Sword timer",
 		description = "Count down the ticks above each sword until it goes off",
@@ -476,19 +438,6 @@ public interface FracturedArchiveConfig extends Config
 	default boolean ezekielSwordTimer()
 	{
 		return true;
-	}
-
-	@ConfigItem(
-		keyName = "ezekielSwordTicks",
-		name = "Sword fuse ticks",
-		description = "Ticks from a sword appearing until it goes off",
-		position = 5,
-		section = ezekielSection
-	)
-	@Range(min = 1, max = 100)
-	default int ezekielSwordTicks()
-	{
-		return 15;
 	}
 
 	@ConfigItem(
@@ -543,6 +492,18 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "ezekielStarCounter",
+		name = "Star counter",
+		description = "Under Ezekiel, count his basic attacks 1, 2, then 3 on the star special, then hide",
+		position = 10,
+		section = ezekielSection
+	)
+	default boolean ezekielStarCounter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "ezekielStarCracks",
 		name = "Highlight star cracks",
 		description = "Mark the tiles of the special's star cracks until they explode",
@@ -581,35 +542,10 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "ezekielFinale",
-		name = "Finale tracker",
-		description = "Number the dodge row tiles in the order the swords come up safe (the one the lightning misses)",
-		position = 14,
-		section = ezekielSection
-	)
-	default boolean ezekielFinale()
-	{
-		return true;
-	}
-
-	@Alpha
-	@ConfigItem(
-		keyName = "ezekielFinaleSafeColor",
-		name = "Finale safe color",
-		description = "Color of the safe finale swords and the dodge row",
-		position = 15,
-		section = ezekielSection
-	)
-	default Color ezekielFinaleSafeColor()
-	{
-		return Color.GREEN;
-	}
-
-	@ConfigItem(
 		keyName = "ezekielFinaleFront",
-		name = "Finale dodge area",
-		description = "During the finale, mark the far row of the 3x3 in front of Ezekiel (where to go) in the safe color",
-		position = 15,
+		name = "Finale dodge row",
+		description = "During the finale, mark the far row of the 3x3 in front of Ezekiel (where to dodge to)",
+		position = 14,
 		section = ezekielSection
 	)
 	default boolean ezekielFinaleFront()
@@ -617,16 +553,17 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
+	@Alpha
 	@ConfigItem(
-		keyName = "ezekielDebug",
-		name = "Debug log",
-		description = "Post Ezekiel's animations, graphics, NPCs and objects to the chat box with tick numbers, to find the finale's safe tiles",
-		position = 16,
+		keyName = "ezekielFinaleSafeColor",
+		name = "Finale dodge color",
+		description = "Color of the finale dodge row",
+		position = 15,
 		section = ezekielSection
 	)
-	default boolean ezekielDebug()
+	default Color ezekielFinaleSafeColor()
 	{
-		return false;
+		return Color.GREEN;
 	}
 
 	// Dreadnoth
@@ -827,26 +764,13 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "ocellusAttackCounter",
 		name = "Attack counter",
-		description = "Count the ticks above Ocellus after each attack",
+		description = "Count the ticks above Ocellus after each attack (5 for attacks not timed yet)",
 		position = 0,
 		section = finalbossSection
 	)
 	default boolean ocellusAttackCounter()
 	{
 		return true;
-	}
-
-	@Range(min = 1, max = 20)
-	@ConfigItem(
-		keyName = "ocellusAttackSpeed",
-		name = "Attack speed",
-		description = "Ticks for Ocellus's attacks that aren't confirmed yet (his basic melee, 14842, is always 3)",
-		position = 1,
-		section = finalbossSection
-	)
-	default int ocellusAttackSpeed()
-	{
-		return 5;
 	}
 
 	@Alpha
@@ -886,6 +810,43 @@ public interface FracturedArchiveConfig extends Config
 	default Color ocellusSpecialColor()
 	{
 		return Color.YELLOW;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusPrayerColor",
+		name = "Prayer special color",
+		description = "Counter color after the special that turns off prayer",
+		position = 4,
+		section = finalbossSection
+	)
+	default Color ocellusPrayerColor()
+	{
+		return new Color(80, 160, 255);
+	}
+
+	@ConfigItem(
+		keyName = "ocellusSweepCounter",
+		name = "Sweep counter",
+		description = "Under Ocellus in phase 3, count his basic attacks 1, 2, then 3 on the sweep, then hide",
+		position = 4,
+		section = finalbossSection
+	)
+	default boolean ocellusSweepCounter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusUnleashCounter",
+		name = "Unleash counter",
+		description = "After Unleash's fourth floor AoE wave, count down the 12 ticks until he falls back down (in the special color)",
+		position = 4,
+		section = finalbossSection
+	)
+	default boolean ocellusUnleashCounter()
+	{
+		return true;
 	}
 
 	@ConfigItem(
@@ -979,25 +940,13 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "ocellusPortalCrossing",
 		name = "Portal crossing",
-		description = "Highlight the 2x2 where the orange portals' lines cross, nearest you",
+		description = "Highlight the safe portal tile the game puts on the floor, nearest you",
 		position = 13,
 		section = finalbossSection
 	)
 	default boolean ocellusPortalCrossing()
 	{
 		return true;
-	}
-
-	@ConfigItem(
-		keyName = "ocellusOrangePortal",
-		name = "Orange portal",
-		description = "Phase 3 only: which portal NPC type is orange (phase 2's orange portals are found automatically)",
-		position = 13,
-		section = finalbossSection
-	)
-	default net.runelite.client.plugins.fracturedarchive.finalboss.FinalBoss.PortalType ocellusOrangePortal()
-	{
-		return net.runelite.client.plugins.fracturedarchive.finalboss.FinalBoss.PortalType.BUFF;
 	}
 
 	@Alpha
@@ -1014,15 +963,104 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "ocellusDebug",
-		name = "Debug log",
-		description = "Post Ocellus's animations, graphics, projectiles and objects to the chat box with tick numbers, to confirm timings",
+		keyName = "ocellusSoulFragments",
+		name = "Highlight soul fragments",
+		description = "Highlight the tile of each soul fragment (orb) while it's spawning or on the floor, with a countdown while it spawns (6 or 12 ticks)",
 		position = 13,
 		section = finalbossSection
 	)
-	default boolean ocellusDebug()
+	default boolean ocellusSoulFragments()
 	{
-		return false;
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusSoulFragmentColor",
+		name = "Soul fragment color",
+		description = "Color of soul fragment tiles",
+		position = 13,
+		section = finalbossSection
+	)
+	default Color ocellusSoulFragmentColor()
+	{
+		return Color.CYAN;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusVoidPortals",
+		name = "Highlight void portals",
+		description = "Highlight phase 3's Void Siphon, Void Augmenter and Void Rift, each in its own color",
+		position = 13,
+		section = finalbossSection
+	)
+	default boolean ocellusVoidPortals()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusSiphonColor",
+		name = "Void Siphon color",
+		description = "Color of the Void Siphon (heals Ocellus)",
+		position = 13,
+		section = finalbossSection
+	)
+	default Color ocellusSiphonColor()
+	{
+		return Color.RED;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusAugmenterColor",
+		name = "Void Augmenter color",
+		description = "Color of the Void Augmenter (buffs Ocellus)",
+		position = 13,
+		section = finalbossSection
+	)
+	default Color ocellusAugmenterColor()
+	{
+		return Color.ORANGE;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusRiftColor",
+		name = "Void Rift color",
+		description = "Color of the Void Rift",
+		position = 13,
+		section = finalbossSection
+	)
+	default Color ocellusRiftColor()
+	{
+		return Color.MAGENTA;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusVoidVine",
+		name = "Highlight trapped players",
+		description = "Highlight the tile of a player trapped by a Void Vine",
+		position = 13,
+		section = finalbossSection
+	)
+	default boolean ocellusVoidVine()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "ocellusTrappedColor",
+		name = "Trapped player color",
+		description = "Color of a trapped player's tile",
+		position = 13,
+		section = finalbossSection
+	)
+	default Color ocellusTrappedColor()
+	{
+		return new Color(0, 255, 0);
 	}
 
 	// Each encounter's settings go in its section above, for example:

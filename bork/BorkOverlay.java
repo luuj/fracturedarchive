@@ -81,17 +81,12 @@ public class BorkOverlay extends EncounterOverlay
 			}
 		}
 
-		// Only one counter above Bork at a time: the stun while he's stunned, otherwise his attack
+		// The stun counter above Bork while he's stunned
 		NPC bork = encounter.getStunnedBork();
 		if (config.borkStunCounter() && bork != null)
 		{
 			String text = Integer.toString(encounter.getStunTicks());
 			renderText(graphics, bork.getCanvasTextLocation(graphics, text, config.textZ()), text, config.borkStunColor());
-		}
-		else if (config.borkAttackCounter() && (bork = encounter.getAttackingBork()) != null)
-		{
-			String text = Integer.toString(encounter.getAttackTicks());
-			renderText(graphics, bork.getCanvasTextLocation(graphics, text, config.textZ()), text, config.borkAttackColor());
 		}
 
 		if (!encounter.isActive())

@@ -59,6 +59,11 @@ public class FinalBossOverlay extends EncounterOverlay
 	@Inject
 	private FinalBoss encounter;
 
+	/** Void bomb warnings and when each was first seen (they land 2 ticks later). */
+	private static final int BOMB_WARNING_TICKS = 2;
+	private final java.util.Map<String, Integer> bombWarnings = new java.util.HashMap<>();
+
+
 	@Inject
 	protected FinalBossOverlay(FracturedArchiveConfig config)
 	{
@@ -84,13 +89,29 @@ public class FinalBossOverlay extends EncounterOverlay
 				renderPoly(graphics, footprint(o), danger, dangerFill, config.borderWidth());
 			}
 
+			java.util.Set<String> warnings = new java.util.HashSet<>();
 			for (GraphicsObject g : wv.getGraphicsObjects())
 			{
 				if (DANGER_GRAPHICS.contains(g.getId()))
 				{
 					renderPoly(graphics, Perspective.getCanvasTilePoly(client, g.getLocation()), danger, dangerFill, config.borderWidth());
 				}
+				if (g.getId() == SpotanimID.VFX_OCELLUS_QUADRANT_BOMB_IDLE_01 && g.getLocation() != null)
+				{
+					// Void bomb warning: lands 2 ticks after it first appears
+					LocalPoint lp = g.getLocation();
+					String key = lp.getX() + "," + lp.getY();
+					warnings.add(key);
+					int start = bombWarnings.computeIfAbsent(key, k -> client.getTickCount());
+					int left = BOMB_WARNING_TICKS - (client.getTickCount() - start);
+					if (left > 0)
+					{
+						String text = Integer.toString(left);
+						renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, danger);
+					}
+				}
 			}
+			bombWarnings.keySet().retainAll(warnings);
 		}
 
 		if (config.ocellusArtifacts())
@@ -119,7 +140,32 @@ public class FinalBossOverlay extends EncounterOverlay
 		}
 
 		NPC ocellus = encounter.getBoss();
-		if (config.ocellusAttackCounter() && ocellus != null && encounter.getAttackTicks() > 0)
+		if (config.ocellusVoidPortals() || config.ocellusVoidVine())
+		{
+			renderVoid(graphics, wv);
+		}
+
+		if (config.ocellusSoulFragments())
+		{
+			renderSoulFragments(graphics, wv);
+		}
+
+		int sweep = encounter.getSweepCount();
+		if (config.ocellusSweepCounter() && ocellus != null && sweep > 0)
+		{
+			// Under him, so it doesn't clash with the attack counter above him
+			String text = Integer.toString(sweep);
+			renderText(graphics, ocellus.getCanvasTextLocation(graphics, text, 0), text,
+				sweep >= 3 ? config.ocellusSpecialColor() : config.ocellusMeleeColor());
+		}
+
+		int unleash = encounter.getUnleashTicks();
+		if (config.ocellusUnleashCounter() && ocellus != null && unleash > 0)
+		{
+			String text = Integer.toString(unleash);
+			renderText(graphics, ocellus.getCanvasTextLocation(graphics, text, config.textZ()), text, config.ocellusSpecialColor());
+		}
+		else if (config.ocellusAttackCounter() && ocellus != null && encounter.getAttackTicks() > 0)
 		{
 			String text = Integer.toString(encounter.getAttackTicks());
 			renderText(graphics, ocellus.getCanvasTextLocation(graphics, text, config.textZ()), text, encounter.getAttackColor());
@@ -163,6 +209,147 @@ public class FinalBossOverlay extends EncounterOverlay
 		}
 	}
 
+	/** Soul fragment graphics while they're spawning or sitting on the floor (not despawning). */
+	private static final Set<Integer> SOUL_FRAGMENTS = Set.of(
+		SpotanimID.VFX_OCELLUS_SOUL_FRAGMENT_SPAWN_6_TICKS,
+		SpotanimID.VFX_OCELLUS_SOUL_FRAGMENT_SPAWN_12_TICKS,
+		SpotanimID.VFX_OCELLUS_SOUL_FRAGMENT_IDLE);
+
+	/** When each spawning fragment was first seen, so its countdown runs from there. */
+	private final java.util.Map<String, Integer> fragmentStarts = new java.util.HashMap<>();
+
+	/**
+	 * The soul fragments (the orbs) on their tiles. They can be a floor graphic or a graphic on an
+	 * invisible NPC, so both are checked. While one is spawning it counts down the ticks its spawn
+	 * takes (the game names them 6 and 12 ticks).
+	 */
+	private void renderSoulFragments(Graphics2D graphics, WorldView wv)
+	{
+		Color c = config.ocellusSoulFragmentColor();
+		Color fill = alpha(c, 70);
+		java.util.Set<String> seen = new java.util.HashSet<>();
+
+		for (GraphicsObject g : wv.getGraphicsObjects())
+		{
+			if (SOUL_FRAGMENTS.contains(g.getId()) && !g.finished() && g.getLocation() != null)
+			{
+				LocalPoint lp = g.getLocation();
+				renderPoly(graphics, Perspective.getCanvasTilePoly(client, lp), c, fill, config.borderWidth());
+				String key = "g" + g.getId() + ":" + lp.getX() + "," + lp.getY();
+				seen.add(key);
+				renderFragmentTicks(graphics, key, g.getId(), lp, c);
+			}
+		}
+		for (NPC npc : wv.npcs())
+		{
+			if (npc == encounter.getBoss() || npc.getLocalLocation() == null)
+			{
+				continue;
+			}
+			for (net.runelite.api.ActorSpotAnim a : npc.getSpotAnims())
+			{
+				if (SOUL_FRAGMENTS.contains(a.getId()))
+				{
+					renderTile(graphics, npc.getWorldLocation(), c, fill, config.borderWidth());
+					String key = "n" + a.getId() + ":" + npc.getIndex();
+					seen.add(key);
+					renderFragmentTicks(graphics, key, a.getId(), npc.getLocalLocation(), c);
+					break;
+				}
+			}
+		}
+		fragmentStarts.keySet().retainAll(seen);
+	}
+
+	private void renderFragmentTicks(Graphics2D graphics, String key, int id, LocalPoint lp, Color c)
+	{
+		int length = id == SpotanimID.VFX_OCELLUS_SOUL_FRAGMENT_SPAWN_6_TICKS ? 6
+			: id == SpotanimID.VFX_OCELLUS_SOUL_FRAGMENT_SPAWN_12_TICKS ? 12
+			: 0;
+		if (length == 0)
+		{
+			// Already landed (idle): no countdown
+			return;
+		}
+		int start = fragmentStarts.computeIfAbsent(key, k -> client.getTickCount());
+		int left = length - (client.getTickCount() - start);
+		if (left > 0)
+		{
+			String text = Integer.toString(left);
+			renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, c);
+		}
+	}
+
+	/**
+	 * Phase 3's void portals, each in its own color, and the tile of any player a Void Vine has
+	 * trapped (the vine sits on the trapped player).
+	 */
+	private void renderVoid(Graphics2D graphics, WorldView wv)
+	{
+		for (NPC npc : wv.npcs())
+		{
+			if (npc.isDead())
+			{
+				continue;
+			}
+
+			Color c;
+			switch (npc.getId())
+			{
+				case net.runelite.api.gameval.NpcID.TFA_OCELLUS_P3_BOMBPORTAL_HEAL:
+					c = config.ocellusSiphonColor();
+					break;
+				case net.runelite.api.gameval.NpcID.TFA_OCELLUS_P3_BOMBPORTAL_BUFF:
+					c = config.ocellusAugmenterColor();
+					break;
+				case net.runelite.api.gameval.NpcID.TFA_OCELLUS_P3_BOMBPORTAL_BASIC:
+					c = config.ocellusRiftColor();
+					break;
+				case net.runelite.api.gameval.NpcID.TFA_OCELLUS_P3_VOID_VINE:
+					if (config.ocellusVoidVine())
+					{
+						renderTrapped(graphics, wv, npc);
+					}
+					continue;
+				default:
+					continue;
+			}
+
+			if (config.ocellusVoidPortals())
+			{
+				net.runelite.api.NPCComposition comp = npc.getTransformedComposition();
+				int size = comp != null ? Math.max(1, comp.getSize()) : 1;
+				renderPoly(graphics, Perspective.getCanvasTileAreaPoly(client, npc.getLocalLocation(), size), c, alpha(c, 50), config.borderWidth());
+			}
+		}
+	}
+
+	/** The true tile of the player the vine has trapped, or the vine's own tile if no one's on it. */
+	private void renderTrapped(Graphics2D graphics, WorldView wv, NPC vine)
+	{
+		WorldPoint at = vine.getWorldLocation();
+		if (at == null)
+		{
+			return;
+		}
+
+		WorldPoint tile = at;
+		int best = Integer.MAX_VALUE;
+		for (net.runelite.api.Player player : wv.players())
+		{
+			WorldPoint p = player.getWorldLocation();
+			int d = p == null ? Integer.MAX_VALUE : p.distanceTo(at);
+			if (d <= 1 && d < best)
+			{
+				best = d;
+				tile = p;
+			}
+		}
+
+		Color c = config.ocellusTrappedColor();
+		renderTile(graphics, tile, c, alpha(c, 80), config.borderWidth());
+	}
+
 	private Polygon footprint(TileObject o)
 	{
 		if (o instanceof GameObject)
@@ -179,115 +366,40 @@ public class FinalBossOverlay extends EncounterOverlay
 	}
 
 	/**
-	 * Each orange portal sits on the arena's edge and fires straight across: one on the west or
-	 * east wall along its row, one on the north or south wall along its column. Where a row meets
-	 * a column is a 2x2. Which wall a portal is on comes from where it is relative to the middle
-	 * of the arena (worked out from the open floor). Only the crossing nearest you is drawn.
+	 * The "safe portal" the game puts on the floor after the portals finish: just its own tile.
+	 * One shows per quadrant; only the one nearest you is drawn. (The 2x2 where the orange
+	 * portals' lines cross, shown as soon as they spawn, still needs the portals found first.)
 	 */
 	private void renderPortalCrossing(Graphics2D graphics)
 	{
-		java.util.List<LocalPoint> orange = encounter.getOrangePortalPoints();
 		net.runelite.api.Player me = client.getLocalPlayer();
-		if (orange.size() < 2 || me == null || me.getLocalLocation() == null)
+		WorldView wv = client.getTopLevelWorldView();
+		if (me == null || me.getLocalLocation() == null || wv == null)
 		{
-			arenaCenter = null;
 			return;
-		}
-
-		LocalPoint mine = me.getLocalLocation();
-		if (arenaCenter == null)
-		{
-			arenaCenter = findArenaCenter(mine);
-			if (arenaCenter == null)
-			{
-				return;
-			}
-		}
-
-		java.util.List<LocalPoint> rows = new java.util.ArrayList<>();
-		java.util.List<LocalPoint> columns = new java.util.ArrayList<>();
-		for (LocalPoint p : orange)
-		{
-			int dx = Math.abs(p.getX() - arenaCenter.getX());
-			int dy = Math.abs(p.getY() - arenaCenter.getY());
-			(dx > dy ? rows : columns).add(p);
 		}
 
 		LocalPoint best = null;
 		long bestDist = Long.MAX_VALUE;
-		for (LocalPoint column : columns)
+		for (GraphicsObject g : wv.getGraphicsObjects())
 		{
-			for (LocalPoint row : rows)
+			if (!FinalBoss.ORANGE_PORTAL_GRAPHICS.contains(g.getId()) || g.getLocation() == null)
 			{
-				LocalPoint crossing = new LocalPoint(column.getX(), row.getY(), mine.getWorldView());
-				long d = dist2(crossing, mine);
-				if (d < bestDist)
-				{
-					bestDist = d;
-					best = crossing;
-				}
+				continue;
+			}
+			long d = dist2(g.getLocation(), me.getLocalLocation());
+			if (d < bestDist)
+			{
+				bestDist = d;
+				best = g.getLocation();
 			}
 		}
 
 		if (best != null)
 		{
 			Color c = config.ocellusPortalCrossingColor();
-			renderPoly(graphics, Perspective.getCanvasTileAreaPoly(client, best, 2), c, alpha(c, 60), config.borderWidth());
+			renderPoly(graphics, Perspective.getCanvasTilePoly(client, best), c, alpha(c, 60), config.borderWidth());
 		}
-	}
-
-	/** Middle of the arena, from the open floor around you; reset when the portals go. */
-	private LocalPoint arenaCenter;
-
-	private LocalPoint findArenaCenter(LocalPoint from)
-	{
-		WorldView wv = client.getTopLevelWorldView();
-		if (wv == null || wv.getCollisionMaps() == null)
-		{
-			return null;
-		}
-		int[][] flags = wv.getCollisionMaps()[wv.getPlane()].getFlags();
-		int sx = from.getSceneX();
-		int sy = from.getSceneY();
-		int n = net.runelite.api.Constants.SCENE_SIZE;
-		if (sx < 0 || sy < 0 || sx >= n || sy >= n)
-		{
-			return null;
-		}
-
-		boolean[][] seen = new boolean[n][n];
-		java.util.ArrayDeque<int[]> queue = new java.util.ArrayDeque<>();
-		queue.add(new int[]{sx, sy});
-		seen[sx][sy] = true;
-		int minX = sx;
-		int maxX = sx;
-		int minY = sy;
-		int maxY = sy;
-		while (!queue.isEmpty())
-		{
-			int[] t = queue.poll();
-			minX = Math.min(minX, t[0]);
-			maxX = Math.max(maxX, t[0]);
-			minY = Math.min(minY, t[1]);
-			maxY = Math.max(maxY, t[1]);
-			int[][] next = {{t[0] + 1, t[1]}, {t[0] - 1, t[1]}, {t[0], t[1] + 1}, {t[0], t[1] - 1}};
-			for (int[] q : next)
-			{
-				if (q[0] < 0 || q[1] < 0 || q[0] >= n || q[1] >= n || seen[q[0]][q[1]]
-					|| Math.abs(q[0] - sx) > 40 || Math.abs(q[1] - sy) > 40
-					|| (flags[q[0]][q[1]] & net.runelite.api.CollisionDataFlag.BLOCK_MOVEMENT_FULL) != 0)
-				{
-					continue;
-				}
-				seen[q[0]][q[1]] = true;
-				queue.add(q);
-			}
-		}
-		int tile = Perspective.LOCAL_TILE_SIZE;
-		// Scene tiles back to local units, relative to where you are
-		int cx = from.getX() + (((minX + maxX) / 2) - sx) * tile;
-		int cy = from.getY() + (((minY + maxY) / 2) - sy) * tile;
-		return new LocalPoint(cx, cy, from.getWorldView());
 	}
 
 	private static long dist2(LocalPoint a, LocalPoint b)

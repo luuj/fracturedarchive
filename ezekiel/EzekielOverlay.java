@@ -30,6 +30,9 @@ public class EzekielOverlay extends EncounterOverlay
 	private static final int MAX_LANE_LENGTH = 30;
 	private static final int BLOCKED = CollisionDataFlag.BLOCK_MOVEMENT_FULL;
 
+	/** A sword's lane only shows for its last 5 ticks. */
+	private static final int LANE_TICKS = 5;
+
 	/** The special's star: the crack, then the marker, before it explodes. */
 	private static final Set<Integer> STAR_GRAPHICS = Set.of(
 		SpotanimID.EZEKIEL_SPECIAL_CRACK_VFX01,
@@ -65,7 +68,7 @@ public class EzekielOverlay extends EncounterOverlay
 				continue;
 			}
 
-			boolean showLane = ticks <= config.ezekielLaneTicks();
+			boolean showLane = ticks <= LANE_TICKS;
 			if (config.ezekielSwordLanes() && showLane && track.hasDirection())
 			{
 				renderLane(graphics, wv, sword, track);
@@ -103,6 +106,15 @@ public class EzekielOverlay extends EncounterOverlay
 			renderFinaleFront(graphics, ezekiel);
 		}
 
+		int star = encounter.getStarCount();
+		if (config.ezekielStarCounter() && star > 0)
+		{
+			// Under him, so it doesn't clash with the attack counter above him
+			String text = Integer.toString(star);
+			renderText(graphics, ezekiel.getCanvasTextLocation(graphics, text, 0), text,
+				star >= 3 ? config.ezekielSpecialColor() : config.ezekielMeleeColor());
+		}
+
 		if (config.ezekielAttackCounter() && encounter.getAttackTicks() > 0)
 		{
 			String text = Integer.toString(encounter.getAttackTicks());
@@ -111,9 +123,8 @@ public class EzekielOverlay extends EncounterOverlay
 	}
 
 	/**
-	 * During the finale: the far row of the 3x3 in front of Ezekiel, in the safe color, which is
-	 * where to dodge to. "In front" is the way he's facing, rounded to
-	 * north, south, east or west.
+	 * During the finale: the far row of the 3x3 in front of Ezekiel, which is where to dodge to.
+	 * "In front" is the way he's facing, rounded to north, south, east or west.
 	 */
 	private void renderFinaleFront(Graphics2D graphics, NPC ezekiel)
 	{
@@ -131,75 +142,16 @@ public class EzekielOverlay extends EncounterOverlay
 		int dy = dir[1];
 		int tile = Perspective.LOCAL_TILE_SIZE;
 
-		// Its far row, across the way he's facing. Each tile lines up with one of the finale swords
-		// (left, middle, right as seen along the row), and gets that sword's safe numbers.
+		// The far row, across the way he's facing
 		int toLastRow = half + size;
 		LocalPoint rowMiddle = center.plus(dx * toLastRow * tile, dy * toLastRow * tile);
-		Map<Integer, String> numbers = config.ezekielFinale() ? rowNumbers(center, dx, dy, half, size) : Map.of();
 		Color safe = config.ezekielFinaleSafeColor();
 		Color safeFill = new Color(safe.getRed(), safe.getGreen(), safe.getBlue(), 70);
 		for (int i = -half; i <= size - 1 - half; i++)
 		{
-			// Perpendicular to the way he's facing
 			LocalPoint lp = rowMiddle.plus(dy * i * tile, dx * i * tile);
 			renderPoly(graphics, Perspective.getCanvasTilePoly(client, lp), safe, safeFill, config.borderWidth());
-			String text = numbers.get(i);
-			if (text != null)
-			{
-				renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, Color.WHITE);
-			}
 		}
-	}
-
-	/**
-	 * Which dodge-row tile each safe number goes on. The finale swords are lined up along the row
-	 * (sorted by where they sit across Ezekiel's facing), so the leftmost sword is the leftmost
-	 * tile and so on. With a different number of swords than tiles, each sword goes on the left,
-	 * middle or right tile by which side of Ezekiel it's on.
-	 */
-	private Map<Integer, String> rowNumbers(LocalPoint center, int dx, int dy, int half, int size)
-	{
-		java.util.List<NPC> order = encounter.getSafeOrder();
-		if (order.isEmpty())
-		{
-			return Map.of();
-		}
-
-		java.util.List<NPC> swords = new java.util.ArrayList<>(encounter.getFinaleSwords().keySet());
-		java.util.function.ToIntFunction<NPC> across = n ->
-		{
-			LocalPoint lp = n.getLocalLocation();
-			return lp == null ? 0 : (lp.getX() - center.getX()) * dy + (lp.getY() - center.getY()) * dx;
-		};
-		swords.sort(java.util.Comparator.comparingInt(across));
-
-		Map<NPC, Integer> tileFor = new java.util.HashMap<>();
-		for (int k = 0; k < swords.size(); k++)
-		{
-			NPC sword = swords.get(k);
-			int slot;
-			if (swords.size() == size)
-			{
-				slot = k - half;
-			}
-			else
-			{
-				int t = across.applyAsInt(sword);
-				slot = Math.abs(t) < Perspective.LOCAL_TILE_SIZE ? 0 : Integer.signum(t) * half;
-			}
-			tileFor.put(sword, slot);
-		}
-
-		Map<Integer, String> numbers = new java.util.HashMap<>();
-		for (int k = 0; k < order.size(); k++)
-		{
-			Integer slot = tileFor.get(order.get(k));
-			if (slot != null)
-			{
-				numbers.merge(slot, Integer.toString(k + 1), (x, y) -> x + " " + y);
-			}
-		}
-		return numbers;
 	}
 
 	private void renderLane(Graphics2D graphics, WorldView wv, NPC sword, Ezekiel.SwordTrack track)

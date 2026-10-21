@@ -8,9 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
 import net.runelite.api.NPC;
@@ -48,7 +46,7 @@ public class FinalBoss extends Encounter
 
 	enum AttackStyle
 	{
-		MELEE, PROJECTILE, SPECIAL
+		MELEE, PROJECTILE, SPECIAL, PRAYER
 	}
 
 	/** Attacks that start the counter, by style. Timings aren't confirmed yet. */
@@ -57,6 +55,8 @@ public class FinalBoss extends Encounter
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE1_BASIC_PROJECTILE_START, AttackStyle.PROJECTILE),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE1_RAILGUN, AttackStyle.SPECIAL),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE1_CHARGE, AttackStyle.SPECIAL),
+		Map.entry(AnimationID.NPC_OCELLUS_PHASE1_EXPEND, AttackStyle.SPECIAL),
+		Map.entry(AnimationID.NPC_OCELLUS_PHASE1_EXPLODE, AttackStyle.SPECIAL),
 		// Phase 3
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC, AttackStyle.MELEE),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC_SILENT, AttackStyle.MELEE),
@@ -65,22 +65,33 @@ public class FinalBoss extends Encounter
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH, AttackStyle.MELEE),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH_SILENT, AttackStyle.MELEE),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_MELEE_SUPERIOR_SLASH, AttackStyle.SPECIAL),
-		// Named "walk" in the game data, but it starts a 10-tick count in game
-		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_WALK, AttackStyle.SPECIAL),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_BASIC_PROJECTILE_START, AttackStyle.PROJECTILE),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_BASIC_PROJECTILE_ALL, AttackStyle.PROJECTILE),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_BASIC_PROJECTILE_NOLOOP, AttackStyle.PROJECTILE),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_SOUL_FRAGMENT_START, AttackStyle.SPECIAL),
-		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_UNLEASH_IN, AttackStyle.SPECIAL),
+		// Unleash has its own counter (see onGraphicsObjectCreated)
 		Map.entry(AnimationID.NPC_OCELLUS_QUADRANT_DESTROY_IN, AttackStyle.SPECIAL),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_DEFLECT_IN, AttackStyle.SPECIAL),
-		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_DEFLECT_IN_SILENT, AttackStyle.SPECIAL));
+		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_DEFLECT_IN_SILENT, AttackStyle.SPECIAL),
+		// The special that turns off prayer
+		// The loop and out parts don't restart it (see onAnimationChanged)
+		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN, AttackStyle.PRAYER));
+
+	/** Length for attacks that haven't been timed yet. */
+	private static final int DEFAULT_ATTACK_TICKS = 5;
 
 	/** Attacks whose length has been confirmed in game, in ticks. */
 	private static final Map<Integer, Integer> KNOWN_TICKS = Map.of(
 		AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC, 3,
 		AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH, 4,
-		AnimationID.NPC_OCELLUS_PHASE3_WALK, 10);
+		// The special that turns off prayer: it hits 5 ticks after he starts it
+		AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN, 5);
+
+	/**
+	 * Later in phase 3 he holds the prayer special (14870, played as the first hit lands) and a
+	 * second hit comes 3 ticks after the first.
+	 */
+	private static final int PRAYER_SECOND_HIT = 3;
 
 	/** Void degen bombs and puddles on the floor: stand off these. */
 	private static final Set<Integer> DANGER_OBJECTS = Set.of(
@@ -114,9 +125,28 @@ public class FinalBoss extends Encounter
 
 	private final Set<NPC> portals = new java.util.HashSet<>();
 
-	@Getter
-	private int attackTicks;
+	/**
+	 * Unleash: four waves of floor AoEs 4 ticks apart, then he falls back down (the floor-wide
+	 * hit) 12 ticks after the fourth wave. The counter runs from the fourth wave to his landing.
+	 */
+	private static final int ARENA_HIT_AFTER_LAST_WAVE = 12;
+	private static final int UNLEASH_WAVES = 4;
+	private boolean unleashing;
+	private int unleashWaves;
+	private int lastWaveTick = -1;
+	private int arenaHitTick = -1;
+
+	/**
+	 * Phase 3 rhythm: two basic attacks (melee or projectile), then the sweep (slash). Counts 1, 2
+	 * on the basic attacks and 3 on the sweep, then goes away when the sweep is done.
+	 */
+	private int sweepCount;
+	private int sweepShownUntil = -1;
+
+	/** The current attack: when it started and how long it lasts (null style = no counter). */
 	private AttackStyle attackStyle;
+	private int attackStartTick;
+	private int attackLength;
 
 	private final Map<LocalPoint, TileObject> dangerObjects = new HashMap<>();
 	private final Map<LocalPoint, GameObject> artifacts = new HashMap<>();
@@ -147,48 +177,16 @@ public class FinalBoss extends Encounter
 	protected void reset()
 	{
 		super.reset();
-		attackTicks = 0;
 		attackStyle = null;
+		clearUnleash();
+		sweepCount = 0;
+		sweepShownUntil = -1;
 	}
 
-	/** Phase 2's orange ("safe") portal graphics. */
+	/** The "safe portal" graphic the game puts where the orange portals' lines cross. */
 	static final Set<Integer> ORANGE_PORTAL_GRAPHICS = Set.of(
 		net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P2_SAFE_PORTAL_SPAWN,
 		net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P2_SAFE_PORTAL_IDLE);
-
-	/**
-	 * Where the orange portals are. They can show up as a graphic on the floor, a graphic on an
-	 * NPC, or (phase 3) as the portal NPC type picked in the settings.
-	 */
-	java.util.List<LocalPoint> getOrangePortalPoints()
-	{
-		java.util.List<LocalPoint> out = new java.util.ArrayList<>();
-		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
-		if (wv == null)
-		{
-			return out;
-		}
-		for (net.runelite.api.GraphicsObject g : wv.getGraphicsObjects())
-		{
-			if (ORANGE_PORTAL_GRAPHICS.contains(g.getId()))
-			{
-				out.add(g.getLocation());
-			}
-		}
-		for (NPC npc : wv.npcs())
-		{
-			boolean orange = npc.getId() == config.ocellusOrangePortal().npcId;
-			for (net.runelite.api.ActorSpotAnim a : npc.getSpotAnims())
-			{
-				orange |= ORANGE_PORTAL_GRAPHICS.contains(a.getId());
-			}
-			if (orange && !npc.isDead() && npc.getLocalLocation() != null)
-			{
-				out.add(npc.getLocalLocation());
-			}
-		}
-		return out;
-	}
 
 	@Override
 	public void onNpcSpawned(net.runelite.api.events.NpcSpawned event)
@@ -244,11 +242,128 @@ public class FinalBoss extends Encounter
 		return Collections.unmodifiableCollection(artifacts.values());
 	}
 
+	private void clearUnleash()
+	{
+		unleashing = false;
+		unleashWaves = 0;
+		lastWaveTick = -1;
+		arenaHitTick = -1;
+	}
+
+	/** Ticks until Unleash's arena-wide hit, counted from its fourth wave (0 = none). */
+	int getUnleashTicks()
+	{
+		if (arenaHitTick < 0)
+		{
+			return 0;
+		}
+		return Math.max(0, arenaHitTick - client.getTickCount());
+	}
+
+	/** Basic attacks since the last sweep (1, 2, then 3 on the sweep), or 0 when hidden. */
+	int getSweepCount()
+	{
+		if (sweepShownUntil >= 0 && client.getTickCount() >= sweepShownUntil)
+		{
+			sweepCount = 0;
+			sweepShownUntil = -1;
+		}
+		return sweepCount;
+	}
+
+	/** Last animation seen on each animated piece of scenery, to record only changes. */
+	private final Map<Long, Integer> sceneryAnimations = new HashMap<>();
+
+	/**
+	 * Records (to the log file) any wall or floor scenery near you that starts a new animation
+	 * during the fight. Used to find which portals turn orange in phase 2.
+	 */
+	private void recordSceneryAnimations()
+	{
+		if (!isActive() || boss.getId() != NpcID.TFA_OCELLUS_P2)
+		{
+			sceneryAnimations.clear();
+			return;
+		}
+		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+		net.runelite.api.Player me = client.getLocalPlayer();
+		if (wv == null || me == null || me.getLocalLocation() == null)
+		{
+			return;
+		}
+		net.runelite.api.Tile[][] tiles = wv.getScene().getTiles()[wv.getPlane()];
+		int cx = me.getLocalLocation().getSceneX();
+		int cy = me.getLocalLocation().getSceneY();
+		for (int x = Math.max(0, cx - 20); x <= Math.min(tiles.length - 1, cx + 20); x++)
+		{
+			for (int y = Math.max(0, cy - 20); y <= Math.min(tiles[x].length - 1, cy + 20); y++)
+			{
+				net.runelite.api.Tile tile = tiles[x][y];
+				if (tile == null)
+				{
+					continue;
+				}
+				for (GameObject o : tile.getGameObjects())
+				{
+					if (o != null)
+					{
+						recordAnimation(o, o.getRenderable(), "object");
+					}
+				}
+				net.runelite.api.WallObject wall = tile.getWallObject();
+				if (wall != null)
+				{
+					recordAnimation(wall, wall.getRenderable1(), "wall");
+					recordAnimation(wall, wall.getRenderable2(), "wall2");
+				}
+				net.runelite.api.DecorativeObject deco = tile.getDecorativeObject();
+				if (deco != null)
+				{
+					recordAnimation(deco, deco.getRenderable(), "deco");
+				}
+			}
+		}
+	}
+
+	private void recordAnimation(TileObject o, net.runelite.api.Renderable r, String kind)
+	{
+		if (!(r instanceof net.runelite.api.DynamicObject))
+		{
+			return;
+		}
+		net.runelite.api.Animation a = ((net.runelite.api.DynamicObject) r).getAnimation();
+		int anim = a == null ? -1 : a.getId();
+		long key = o.getHash() * 3 + (kind.equals("wall2") ? 1 : 0);
+		Integer before = sceneryAnimations.put(key, anim);
+		if (before == null || before != anim)
+		{
+			debug(kind + " " + o.getId() + " anim " + anim + " at " + tile(o.getWorldLocation()));
+		}
+	}
+
+	/** Ticks left on the counter (0 = none). */
+	int getAttackTicks()
+	{
+		if (attackStyle == null)
+		{
+			return 0;
+		}
+		if (attackStartTick < 0)
+		{
+			return attackLength;
+		}
+		return Math.max(0, attackLength - (client.getTickCount() - attackStartTick));
+	}
+
 	Color getAttackColor()
 	{
 		if (attackStyle == AttackStyle.MELEE)
 		{
 			return config.ocellusMeleeColor();
+		}
+		if (attackStyle == AttackStyle.PRAYER)
+		{
+			return config.ocellusPrayerColor();
 		}
 		return attackStyle == AttackStyle.PROJECTILE ? config.ocellusProjectileColor() : config.ocellusSpecialColor();
 	}
@@ -264,28 +379,102 @@ public class FinalBoss extends Encounter
 		int animation = event.getActor().getAnimation();
 		debug("anim " + animation);
 
+		if (animation == AnimationID.NPC_OCELLUS_PHASE3_UNLEASH_OUT || animation == AnimationID.NPC_OCELLUS_PHASE3_UNLEASH_OUT_90F)
+		{
+			// He's landed
+			clearUnleash();
+		}
+
+		if (animation == AnimationID.NPC_OCELLUS_PHASE3_UNLEASH_IN)
+		{
+			clearUnleash();
+			unleashing = true;
+			attackStyle = null;
+		}
+
+		if (animation == AnimationID.NPC_OCELLUS_PHASE3_PRAYER_LOOP)
+		{
+			// He's holding it (later in phase 3): the first hit lands now, and a second hit comes
+			// 3 ticks later. Start a fresh countdown to that second hit.
+			attackStyle = AttackStyle.PRAYER;
+			attackStartTick = -1;
+			attackLength = PRAYER_SECOND_HIT;
+		}
+
+		switch (animation)
+		{
+			case AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC:
+			case AnimationID.NPC_OCELLUS_PHASE3_BASIC_PROJECTILE_ALL:
+			case AnimationID.NPC_OCELLUS_PHASE3_BASIC_PROJECTILE_START:
+			case AnimationID.NPC_OCELLUS_PHASE3_BASIC_PROJECTILE_NOLOOP:
+				sweepCount = sweepCount >= 3 ? 1 : sweepCount + 1;
+				sweepShownUntil = -1;
+				break;
+			case AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH:
+				// The sweep: show 3 for its 4 ticks, then go away
+				sweepCount = 3;
+				sweepShownUntil = client.getTickCount() + 4;
+				break;
+			case AnimationID.NPC_OCELLUS_PHASE3_MELEE_SUPERIOR_SLASH:
+			case AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN:
+			case AnimationID.NPC_OCELLUS_PHASE3_UNLEASH_IN:
+			case AnimationID.NPC_OCELLUS_QUADRANT_DESTROY_IN:
+				// A special breaks the rhythm; start again from the next basic attack
+				sweepCount = 0;
+				sweepShownUntil = -1;
+				break;
+			default:
+				break;
+		}
+
 		AttackStyle style = ATTACKS.get(animation);
 		if (style != null)
 		{
+			// The count starts on the game tick after the animation is seen, so the first number
+			// shown is always the full length, whichever point in the tick the animation arrives. Attacks with a confirmed length use
+			// it; the rest use DEFAULT_ATTACK_TICKS.
 			attackStyle = style;
-			// +1 so the first number shown is the full count. Attacks with a confirmed length use
-			// it; the rest use the "Attack speed" setting.
-			attackTicks = KNOWN_TICKS.getOrDefault(animation, config.ocellusAttackSpeed()) + 1;
+			// Pinned to the next game tick (see onGameTick)
+			attackStartTick = -1;
+			attackLength = KNOWN_TICKS.getOrDefault(animation, DEFAULT_ATTACK_TICKS);
 		}
 	}
 
 	@Override
 	public void onGameTick(GameTick event)
 	{
-		if (attackTicks > 0 && --attackTicks == 0)
+		recordSceneryAnimations();
+
+		if (attackStyle != null && attackStartTick < 0)
+		{
+			attackStartTick = client.getTickCount();
+		}
+		if (attackStyle != null && getAttackTicks() <= 0)
 		{
 			attackStyle = null;
+		}
+		if (arenaHitTick >= 0 && client.getTickCount() > arenaHitTick + 2)
+		{
+			// Missed his landing; don't leave the counter hanging
+			clearUnleash();
 		}
 	}
 
 	@Override
 	public void onGraphicsObjectCreated(GraphicsObjectCreated event)
 	{
+		int id = event.getGraphicsObject().getId();
+		int tick = client.getTickCount();
+		if (unleashing && id == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P2_AOE_DODGE && tick != lastWaveTick)
+		{
+			// Each wave drops many tiles on the same tick: count the tick once
+			lastWaveTick = tick;
+			if (++unleashWaves == UNLEASH_WAVES)
+			{
+				arenaHitTick = tick + ARENA_HIT_AFTER_LAST_WAVE;
+			}
+		}
+
 		if (isActive())
 		{
 			debug("gfx " + event.getGraphicsObject().getId() + " at " + tile(WorldPoint.fromLocal(client, event.getGraphicsObject().getLocation())));
@@ -298,8 +487,30 @@ public class FinalBoss extends Encounter
 		Projectile p = event.getProjectile();
 		if (isActive() && loggedProjectiles.add(p))
 		{
-			debug("projectile " + p.getId() + " to " + (p.getTargetActor() != null ? p.getTargetActor().getName() : tile(p.getTargetPoint()))
+			debug("projectile " + p.getId() + " from " + tile(p.getSourcePoint())
+				+ (p.getSourceActor() != null ? " (" + p.getSourceActor().getName() + ")" : "")
+				+ " to " + (p.getTargetActor() != null ? p.getTargetActor().getName() : tile(p.getTargetPoint()))
 				+ ", " + (p.getRemainingCycles() + 29) / 30 + " ticks");
+		}
+	}
+
+	@Override
+	public void onOverheadTextChanged(net.runelite.api.events.OverheadTextChanged event)
+	{
+		// Record what Ocellus (or anything near him) says, e.g. "insolence" or "untether"
+		if (isActive() && event.getActor() != null)
+		{
+			debug("says (" + event.getActor().getName() + "): " + event.getOverheadText());
+		}
+	}
+
+	@Override
+	public void onChatMessage(net.runelite.api.events.ChatMessage event)
+	{
+		if (isActive() && (event.getType() == net.runelite.api.ChatMessageType.NPC_SAY
+			|| event.getType() == net.runelite.api.ChatMessageType.GAMEMESSAGE))
+		{
+			debug("chat " + event.getType() + " (" + event.getName() + "): " + event.getMessage());
 		}
 	}
 
@@ -366,10 +577,6 @@ public class FinalBoss extends Encounter
 	{
 		String line = "[Ocellus t" + client.getTickCount() + "] " + message;
 		log.info("{}", line);
-		if (config.ocellusDebug())
-		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line, null);
-		}
 	}
 
 	private static String tile(WorldPoint p)

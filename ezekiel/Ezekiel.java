@@ -2,25 +2,18 @@ package net.runelite.client.plugins.fracturedarchive.ezekiel;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Actor;
-import net.runelite.api.ActorSpotAnim;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.CollisionDataFlag;
 import net.runelite.api.Constants;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
 import net.runelite.api.GraphicsObject;
 import net.runelite.api.NPC;
-import net.runelite.api.NPCComposition;
-import net.runelite.api.Perspective;
-import net.runelite.api.Projectile;
 import net.runelite.api.WorldView;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
@@ -32,10 +25,8 @@ import net.runelite.api.events.GraphicsObjectCreated;
 import net.runelite.api.events.NpcChanged;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
-import net.runelite.api.events.ProjectileMoved;
 import net.runelite.api.gameval.AnimationID;
 import net.runelite.api.gameval.NpcID;
-import net.runelite.api.gameval.SpotanimID;
 import net.runelite.client.plugins.fracturedarchive.Encounter;
 import net.runelite.client.plugins.fracturedarchive.EncounterOverlay;
 import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
@@ -55,6 +46,9 @@ public class Ezekiel extends Encounter
 	/** The swords that fly across the room. The _NOOP version is a sword that's finished. */
 	private static final int SWORD_ID = NpcID.TFA_EZEKIEL_SWORD;
 
+	/** Ticks from a sword appearing until it goes off. */
+	private static final int SWORD_TICKS = 15;
+
 	private final Map<NPC, SwordTrack> swords = new HashMap<>();
 
 	/** Attack counter: ticks remaining (0 = none) and the attack that started it. */
@@ -63,59 +57,25 @@ public class Ezekiel extends Encounter
 	@Getter
 	private int attackAnimation = -1;
 
+	/**
+	 * His rhythm: two basic attacks, then the star special. Counts 1, 2 on the basic attacks and 3
+	 * on the star, then goes away once the star's attack is done.
+	 */
+	private int starCount;
+	private int starShownUntil = -1;
+	private int lastAttackTick = -1;
+
+	/**
+	 * Between stars he does two melees, a pause (9+ ticks), then two more melees and the star.
+	 * A pause this long starts the count over, so only the pair right before the star shows 1, 2.
+	 */
+	private static final int STAR_COUNT_RESET_GAP = 9;
+
 	/** Ticks between Ezekiel's attacks. */
 	private static final int ATTACK_SPEED = 5;
 
 	/** Tick the finale started, or -1 when it isn't happening. */
 	private int finaleStartTick = -1;
-
-	/**
-	 * The finale's swords, and whether each has been marked by lightning. The one lightning
-	 * doesn't hit is the safe one.
-	 */
-	private final Map<NPC, Boolean> finaleSwords = new HashMap<>();
-
-	/**
-	 * The safe swords in the order they came up: each time lightning has hit every sword but one,
-	 * the one it missed is the next safe sword (1, 2, 3...).
-	 */
-	private final java.util.List<NPC> safeOrder = new java.util.ArrayList<>();
-	private int lastRoundTick = -1;
-	/** Swords that had a lightning spotanim last tick, so a lingering one only counts once. */
-	private final Set<NPC> lightningLastTick = new HashSet<>();
-	/** Lightning projectiles already counted. */
-	private final Set<Projectile> countedProjectiles = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
-	/** Spotanims already logged on each finale sword, so the debug log only shows new ones. */
-	private final Map<NPC, Set<Integer>> loggedSwordSpotAnims = new HashMap<>();
-
-	private static final Set<Integer> FINALE_SWORD_ANIMATIONS = Set.of(
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_DROP01, AnimationID.VFX_EZEKIEL_FINALE_SWORD_IDLE01,
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_DROP02, AnimationID.VFX_EZEKIEL_FINALE_SWORD_IDLE02,
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_DROP03, AnimationID.VFX_EZEKIEL_FINALE_SWORD_IDLE03,
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_DROP04, AnimationID.VFX_EZEKIEL_FINALE_SWORD_IDLE04);
-
-	/** A finale sword's own warning animation: taken to mean lightning is about to hit it. */
-	private static final Set<Integer> FINALE_SWORD_TELEGRAPHS = Set.of(
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_TELEGRAPH01,
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_TELEGRAPH02,
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_TELEGRAPH03,
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_TELEGRAPH04);
-
-	private static final Set<Integer> FINALE_SWORD_DESPAWNS = Set.of(
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_DESPAWN01,
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_DESPAWN02,
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_DESPAWN03,
-		AnimationID.VFX_EZEKIEL_FINALE_SWORD_DESPAWN04);
-
-	/** Graphics that land on a sword when lightning marks or hits it. Not confirmed in game yet. */
-	private static final Set<Integer> LIGHTNING_GRAPHICS = Set.of(
-		SpotanimID.VFX_EZEKIEL_SWORD_TELEGRAPH01,
-		SpotanimID.VFX_EZEKIEL_SWORD_TELEGRAPH02,
-		SpotanimID.VFX_EZEKIEL_SWORD_TELEGRAPH03,
-		SpotanimID.VFX_EZEKIEL_SWORD_TELEGRAPH04,
-		SpotanimID.VFX_EZEKIEL_FINALE_IMPACT_LARGE01,
-		SpotanimID.VFX_EZEKIEL_FINALE_IMPACT_MEDIUM01,
-		SpotanimID.VFX_EZEKIEL_FINALE_IMPACT_SMALL01);
 
 	@Inject
 	private EzekielOverlay overlay;
@@ -147,9 +107,9 @@ public class Ezekiel extends Encounter
 		attackTicks = 0;
 		attackAnimation = -1;
 		finaleStartTick = -1;
-		finaleSwords.clear();
-		loggedSwordSpotAnims.clear();
-		clearSafeOrder();
+		starCount = 0;
+		starShownUntil = -1;
+		lastAttackTick = -1;
 	}
 
 	Map<NPC, SwordTrack> getSwords()
@@ -195,15 +155,11 @@ public class Ezekiel extends Encounter
 	{
 		super.onNpcDespawned(event);
 		swords.remove(event.getNpc());
-		finaleSwords.remove(event.getNpc());
-		lightningLastTick.remove(event.getNpc());
 	}
 
 	@Override
 	public void onGameTick(GameTick event)
 	{
-		checkSwordSpotAnims();
-
 		if (attackTicks > 0 && --attackTicks == 0)
 		{
 			attackAnimation = -1;
@@ -232,24 +188,9 @@ public class Ezekiel extends Encounter
 		NPC npc = (NPC) event.getActor();
 		int animation = npc.getAnimation();
 
-		// Ezekiel, and any NPC during the finale (so the swords' animations are recorded too)
-		if (bossIds().contains(npc.getId()) || npc.getId() == NpcID.TFA_EZEKIEL_FINALE_VFX || finaleStartTick >= 0)
+		if (bossIds().contains(npc.getId()))
 		{
 			debug("anim " + animation + " on " + npc.getName() + " (" + npc.getId() + ") at " + tile(npc.getWorldLocation()));
-		}
-
-		if (FINALE_SWORD_ANIMATIONS.contains(animation))
-		{
-			finaleSwords.putIfAbsent(npc, false);
-		}
-		else if (FINALE_SWORD_TELEGRAPHS.contains(animation))
-		{
-			finaleSwords.putIfAbsent(npc, false);
-			strike(npc);
-		}
-		else if (FINALE_SWORD_DESPAWNS.contains(animation))
-		{
-			finaleSwords.remove(npc);
 		}
 
 		if (!bossIds().contains(npc.getId()))
@@ -262,13 +203,28 @@ public class Ezekiel extends Encounter
 			case AnimationID.NPC_EZEKIEL_MELEE01:
 			case AnimationID.NPC_EZEKIEL_MAGIC01:
 			case AnimationID.NPC_EZEKIEL_SPECIAL01:
+				if (animation == AnimationID.NPC_EZEKIEL_SPECIAL01)
+				{
+					// The star: show 3 until its attack is done
+					starCount = 3;
+					starShownUntil = client.getTickCount() + ATTACK_SPEED;
+				}
+				else
+				{
+					boolean pause = lastAttackTick >= 0 && client.getTickCount() - lastAttackTick >= STAR_COUNT_RESET_GAP;
+					starCount = starCount >= 3 || pause ? 1 : starCount + 1;
+					starShownUntil = -1;
+				}
+				lastAttackTick = client.getTickCount();
 				attackAnimation = animation;
 				// +1 so the first number shown is the full attack speed
 				attackTicks = ATTACK_SPEED + 1;
 				break;
 			case AnimationID.NPC_EZEKIEL_FINALE01:
+				starCount = 0;
+				starShownUntil = -1;
+				// No attack counter during the finale
 				finaleStartTick = client.getTickCount();
-				clearSafeOrder();
 				attackTicks = 0;
 				attackAnimation = -1;
 				break;
@@ -282,10 +238,6 @@ public class Ezekiel extends Encounter
 			case AnimationID.NPC_EZEKIEL_FINALE_DEATH01:
 			case AnimationID.NPC_EZEKIEL_DEATH01:
 				finaleStartTick = -1;
-				finaleSwords.clear();
-			loggedSwordSpotAnims.clear();
-			clearSafeOrder();
-		loggedSwordSpotAnims.clear();
 				break;
 			default:
 				break;
@@ -295,20 +247,6 @@ public class Ezekiel extends Encounter
 	@Override
 	public void onGraphicsObjectCreated(GraphicsObjectCreated event)
 	{
-		GraphicsObject lightning = event.getGraphicsObject();
-		// During the finale, a new graphic on a sword's tiles is taken as lightning hitting it
-		// (except the star special's own graphics)
-		if ((finaleStartTick >= 0 || LIGHTNING_GRAPHICS.contains(lightning.getId()))
-			&& !STAR_GRAPHIC_IDS.contains(lightning.getId()))
-		{
-			NPC sword = swordAt(lightning.getLocation());
-			if (sword != null)
-			{
-				debug("gfx " + lightning.getId() + " on finale sword at " + tile(sword.getWorldLocation()));
-				strike(sword);
-			}
-		}
-
 		if (isActive() || !swords.isEmpty())
 		{
 			GraphicsObject g = event.getGraphicsObject();
@@ -326,143 +264,15 @@ public class Ezekiel extends Encounter
 		}
 	}
 
-	/**
-	 * Lightning can show as a spotanim played on the sword itself. Mark the sword if it has one
-	 * of the lightning graphics, and log any new spotanim when the debug log is on.
-	 */
-	private void checkSwordSpotAnims()
+	/** Basic attacks since his last star (1, 2, then 3 on the star), or 0 when hidden. */
+	int getStarCount()
 	{
-		Set<NPC> hasLightning = new HashSet<>();
-		for (NPC sword : new java.util.ArrayList<>(finaleSwords.keySet()))
+		if (starShownUntil >= 0 && client.getTickCount() >= starShownUntil)
 		{
-			for (ActorSpotAnim spotAnim : sword.getSpotAnims())
-			{
-				int id = spotAnim.getId();
-				if (LIGHTNING_GRAPHICS.contains(id))
-				{
-					hasLightning.add(sword);
-					if (!lightningLastTick.contains(sword))
-					{
-						strike(sword);
-					}
-				}
-				if (loggedSwordSpotAnims.computeIfAbsent(sword, k -> new HashSet<>()).add(id))
-				{
-					debug("spotanim " + id + " on finale sword " + sword.getId() + " at " + tile(sword.getWorldLocation()));
-				}
-			}
+			starCount = 0;
+			starShownUntil = -1;
 		}
-		lightningLastTick.clear();
-		lightningLastTick.addAll(hasLightning);
-	}
-
-	@Override
-	public void onProjectileMoved(ProjectileMoved event)
-	{
-		Projectile projectile = event.getProjectile();
-		Actor target = projectile.getTargetActor();
-		// Lightning fired at a finale sword
-		if (target instanceof NPC && finaleSwords.containsKey(target))
-		{
-			if (countedProjectiles.add(projectile))
-			{
-				debug("projectile " + projectile.getId() + " at finale sword " + ((NPC) target).getId() + " at " + tile(target.getWorldLocation()));
-				strike((NPC) target);
-			}
-		}
-		else if (finaleStartTick >= 0 && loggedProjectiles.add(projectile))
-		{
-			debug("projectile " + projectile.getId() + " to " + tile(projectile.getTargetPoint()));
-			// A projectile thrown at the ground on a sword's tiles counts as lightning too
-			WorldPoint landing = projectile.getTargetPoint();
-			NPC sword = landing != null ? swordAt(LocalPoint.fromWorld(client, landing)) : null;
-			if (sword != null && countedProjectiles.add(projectile))
-			{
-				strike(sword);
-			}
-		}
-	}
-
-	/** Finale projectiles already logged. */
-	private final Set<Projectile> loggedProjectiles = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
-
-	/** The star special's graphics, which aren't lightning. */
-	private static final Set<Integer> STAR_GRAPHIC_IDS = Set.of(
-		SpotanimID.EZEKIEL_SPECIAL_CRACK_VFX01,
-		SpotanimID.VFX_EZEKIEL_STAR_EXPLOSION_SPAWN01,
-		SpotanimID.VFX_EZEKIEL_STAR_EXPLOSION_MARKER01,
-		SpotanimID.VFX_EZEKIEL_STAR_EXPLOSION01);
-
-	/** The finale sword whose tiles (plus 1 tile around) cover this point, or null. */
-	private NPC swordAt(LocalPoint at)
-	{
-		if (at == null)
-		{
-			return null;
-		}
-		for (NPC sword : finaleSwords.keySet())
-		{
-			LocalPoint lp = sword.getLocalLocation();
-			NPCComposition c = sword.getTransformedComposition();
-			int reach = (c != null ? c.getSize() : 1) * Perspective.LOCAL_TILE_SIZE / 2 + Perspective.LOCAL_TILE_SIZE;
-			if (lp != null && Math.abs(lp.getX() - at.getX()) <= reach && Math.abs(lp.getY() - at.getY()) <= reach)
-			{
-				return sword;
-			}
-		}
-		return null;
-	}
-
-	/**
-	 * Lightning hit a finale sword. Once it has hit every sword but one this round, the one it
-	 * missed is the next safe sword, and a new round starts.
-	 */
-	private void strike(NPC sword)
-	{
-		if (!finaleSwords.containsKey(sword) || finaleSwords.get(sword))
-		{
-			return;
-		}
-		finaleSwords.put(sword, true);
-
-		long hit = finaleSwords.values().stream().filter(b -> b).count();
-		int tick = client.getTickCount();
-		if (finaleSwords.size() >= 2 && hit == finaleSwords.size() - 1 && tick != lastRoundTick)
-		{
-			for (Map.Entry<NPC, Boolean> entry : finaleSwords.entrySet())
-			{
-				if (!entry.getValue())
-				{
-					safeOrder.add(entry.getKey());
-					debug("safe sword " + safeOrder.size() + " at " + tile(entry.getKey().getWorldLocation()));
-				}
-				entry.setValue(false);
-			}
-			lastRoundTick = tick;
-		}
-	}
-
-	private void clearSafeOrder()
-	{
-		safeOrder.clear();
-		lastRoundTick = -1;
-		lightningLastTick.clear();
-		for (Map.Entry<NPC, Boolean> entry : finaleSwords.entrySet())
-		{
-			entry.setValue(false);
-		}
-	}
-
-	/** The safe swords, in order (a sword can come up more than once). */
-	java.util.List<NPC> getSafeOrder()
-	{
-		return Collections.unmodifiableList(safeOrder);
-	}
-
-	/** The finale's swords, each with whether lightning has marked it. */
-	Map<NPC, Boolean> getFinaleSwords()
-	{
-		return Collections.unmodifiableMap(finaleSwords);
+		return starCount;
 	}
 
 	/** Ticks since the finale started, or -1 when it isn't happening. */
@@ -489,10 +299,6 @@ public class Ezekiel extends Encounter
 		String finale = finaleStartTick >= 0 ? " finale+" + getFinaleTicks() : "";
 		String line = "[Ezekiel t" + client.getTickCount() + finale + "] " + message;
 		log.info("{}", line);
-		if (config.ezekielDebug())
-		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", line, null);
-		}
 	}
 
 	private static String tile(WorldPoint p)
@@ -507,17 +313,13 @@ public class Ezekiel extends Encounter
 		{
 			swords.clear();
 			roomCenter = null;
-			finaleSwords.clear();
-			loggedSwordSpotAnims.clear();
-			clearSafeOrder();
-		loggedSwordSpotAnims.clear();
 		}
 	}
 
 	/** Ticks until the sword goes off (0 or less once it has). */
 	int ticksUntilLaunch(SwordTrack track)
 	{
-		return config.ezekielSwordTicks() - (client.getTickCount() - track.getSpawnTick());
+		return SWORD_TICKS - (client.getTickCount() - track.getSpawnTick());
 	}
 
 	/** Center of the room in scene tiles, worked out once per fight from the open floor. */
