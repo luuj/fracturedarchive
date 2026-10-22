@@ -72,6 +72,7 @@ public class Xarth extends Encounter
 		fireballs.clear();
 		lastAttackTick = -1;
 		volleyEndTick = -1;
+		rangedPhase = false;
 	}
 
 	@Override
@@ -94,8 +95,19 @@ public class Xarth extends Encounter
 				// Part of the fireball volley already being counted
 				return;
 			}
+			if (animation == AnimationID.XARTH_ATTACK_RANGED_01)
+			{
+				rangedPhase = true;
+			}
 			attackAnimation = animation;
 			lastAttackTick = client.getTickCount();
+			if (animation == AnimationID.XARTH_ATTACK_MAGIC_01 && rangedPhase)
+			{
+				// Once his ranged attacks have started, his magic animation is only ever the corpse
+				// volley: show nothing until the first fireball starts its count
+				attackTicks = 0;
+				return;
+			}
 			// +1 so the first number shown is the full attack speed
 			attackTicks = ATTACK_SPEED + 1;
 		}
@@ -116,10 +128,12 @@ public class Xarth extends Encounter
 	 * corpse there as it lands, 2 ticks later.
 	 */
 	private static final int FIREBALL = 4034;
-	/** From the volley's cast to his next attack. */
+	/** How long after the first fireball to ignore his repeated volley animations. */
 	private static final int VOLLEY_TICKS = 7;
 	private int lastAttackTick = -1;
 	private int volleyEndTick = -1;
+	/** His ranged attacks have started: from then on he doesn't use magic on players. */
+	private boolean rangedPhase;
 	private final Set<net.runelite.api.Projectile> fireballs = new java.util.HashSet<>();
 	private final Set<net.runelite.api.Projectile> logged = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
@@ -145,10 +159,10 @@ public class Xarth extends Encounter
 			fireballs.add(p);
 			if (client.getTickCount() >= volleyEndTick && lastAttackTick >= 0)
 			{
-				// That magic attack was the corpse volley: 3 fireballs 2 ticks apart, and his next
-				// attack comes 7 ticks after he started it, not 4
-				volleyEndTick = lastAttackTick + VOLLEY_TICKS;
-				attackTicks = volleyEndTick + 1 - client.getTickCount();
+				// The corpse volley: no attack counter through it (his repeated volley animations
+				// are ignored until it's over)
+				volleyEndTick = client.getTickCount() + VOLLEY_TICKS;
+				attackTicks = 0;
 			}
 		}
 	}

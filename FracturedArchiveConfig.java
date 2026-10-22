@@ -429,45 +429,6 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
-	@Range(min = 1, max = 15)
-	@ConfigItem(
-		keyName = "ocellusPrayerFirstTicks",
-		name = "Prayer attack ticks",
-		description = "Counter length for the prayer turn-off attack, from when he starts it (14869) to its hit",
-		position = 100,
-		section = finalbossSection
-	)
-	default int ocellusPrayerFirstTicks()
-	{
-		return 6;
-	}
-
-	@Range(min = 1, max = 15)
-	@ConfigItem(
-		keyName = "ocellusPrayerSecondTicks",
-		name = "Prayer second hit ticks",
-		description = "Counter length for the second hit when he holds the prayer attack (from 14870)",
-		position = 101,
-		section = finalbossSection
-	)
-	default int ocellusPrayerSecondTicks()
-	{
-		return 4;
-	}
-
-	@Range(min = 1, max = 15)
-	@ConfigItem(
-		keyName = "ocellusPrayerThirdTicks",
-		name = "Prayer third hit ticks",
-		description = "Counter length for the extra hit in the long version of the held prayer attack",
-		position = 102,
-		section = finalbossSection
-	)
-	default int ocellusPrayerThirdTicks()
-	{
-		return 3;
-	}
-
 	@ConfigItem(
 		keyName = "ocellusSweepCounter",
 		name = "Sweep counter",

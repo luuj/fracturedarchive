@@ -95,7 +95,7 @@ public class FinalBoss extends Encounter
 	private static final Map<Integer, Integer> KNOWN_TICKS = Map.of(
 		AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC, 4,
 		AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH, 5,
-		AnimationID.NPC_OCELLUS_PHASE3_MELEE_HYBRID, 6);
+		AnimationID.NPC_OCELLUS_PHASE3_MELEE_HYBRID, 7);
 	// Basic melee and sweep: 4 and 5 line up in game (his swings are 3 and 4 ticks apart)
 	// The prayer special's two hits use the "Prayer attack" settings (see onAnimationChanged)
 
@@ -363,6 +363,7 @@ public class FinalBoss extends Encounter
 	private static final int VOID_CHAIN_TELEGRAPH = net.runelite.api.gameval.SpotanimID.VFX_VOID_CHAIN_PLAYER_TELEGRAPH;
 	private static final int VOID_CHAIN_EXPLOSION = net.runelite.api.gameval.SpotanimID.VFX_VOID_CHAIN_EXPLOSION;
 	private static final int VOID_CHAIN_FIRST_HIT = 3;
+	private static final int VOID_CHAIN_EARLY_WARNING = net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_SOUL_FRAGMENT_PLAYER_IDLE;
 	private static final int VOID_CHAIN_GAP = 2;
 	private static final int VOID_CHAIN_HITS = 6;
 	/** Players with the telegraph, the tick the next explosion lands, and how many have landed. */
@@ -409,14 +410,17 @@ public class FinalBoss extends Encounter
 		{
 			for (net.runelite.api.ActorSpotAnim spotAnim : player.getSpotAnims())
 			{
-				if (spotAnim.getId() == VOID_CHAIN_TELEGRAPH && !chainTargets.contains(player)
+				// The soul fragment effect on a player comes 3 ticks before the chain warning, and
+				// always leads into the chain: start counting from it (6 to the first explosion)
+				boolean early = spotAnim.getId() == VOID_CHAIN_EARLY_WARNING;
+				if ((early || spotAnim.getId() == VOID_CHAIN_TELEGRAPH) && !chainTargets.contains(player)
 					&& client.getTickCount() - chainEndTick > 10)
 				{
 					if (chainNextHitTick < 0)
 					{
 						chainTargets.clear();
 						chainHits = 0;
-						chainNextHitTick = client.getTickCount() + VOID_CHAIN_FIRST_HIT;
+						chainNextHitTick = client.getTickCount() + (early ? VOID_CHAIN_FIRST_HIT + 3 : VOID_CHAIN_FIRST_HIT);
 					}
 					chainTargets.add(player);
 				}
@@ -472,6 +476,10 @@ public class FinalBoss extends Encounter
 	private boolean prayerHolding;
 	private boolean prayerEnding;
 	private int prayerOutTick = -1;
+	/** The prayer attack's counts: to the first hit, the held hit, and the long version's extra hit. */
+	private static final int PRAYER_FIRST_TICKS = 6;
+	private static final int PRAYER_SECOND_TICKS = 4;
+	private static final int PRAYER_THIRD_TICKS = 3;
 	private int prayerHoldTick = -1;
 	/** What he says to start it: "Obliteration" or "Run" (as a whole word, so not "rune"). */
 	private static final java.util.regex.Pattern OBLITERATION_PHRASES =
@@ -931,7 +939,7 @@ public class FinalBoss extends Encounter
 			// 3 ticks later. Start a fresh countdown to that second hit.
 			attackStyle = AttackStyle.PRAYER;
 			attackStartTick = -1;
-			attackLength = config.ocellusPrayerSecondTicks();
+			attackLength = PRAYER_SECOND_TICKS;
 			prayerHolding = true;
 			prayerEnding = false;
 			prayerOutTick = -1;
@@ -977,7 +985,7 @@ public class FinalBoss extends Encounter
 			// of a tick, so counting from that tick would start a number short
 			attackStartTick = -1;
 			attackLength = animation == AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN
-				? config.ocellusPrayerFirstTicks()
+				? PRAYER_FIRST_TICKS
 				: KNOWN_TICKS.getOrDefault(animation, DEFAULT_ATTACK_TICKS);
 			checkHybridStyle();
 		}
@@ -1026,7 +1034,7 @@ public class FinalBoss extends Encounter
 				// The long version: one more hit
 				prayerEnding = true;
 				attackStartTick = client.getTickCount();
-				attackLength = config.ocellusPrayerThirdTicks();
+				attackLength = PRAYER_THIRD_TICKS;
 			}
 			else
 			{
