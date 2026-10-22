@@ -195,6 +195,32 @@ public class Ezekiel extends Encounter
 		java.util.List<net.runelite.api.Actor> actors = new java.util.ArrayList<>();
 		wv.npcs().forEach(actors::add);
 		wv.players().forEach(actors::add);
+		// Where you are each tick: with the hits below, that shows which tiles were safe
+		if (client.getLocalPlayer() != null)
+		{
+			debug("you at " + tile(client.getLocalPlayer().getWorldLocation()));
+		}
+
+		// Every finale sword's effects each tick, with their timing, to catch effects being replayed
+		StringBuilder swordsLine = new StringBuilder();
+		for (NPC npc : wv.npcs())
+		{
+			if (npc.getId() == NpcID.TFA_EZEKIEL_FINALE_VFX)
+			{
+				swordsLine.append(" | ").append(tile(npc.getWorldLocation())).append(':');
+				for (net.runelite.api.ActorSpotAnim sa : npc.getSpotAnims())
+				{
+					swordsLine.append(' ').append(sa.getId()).append(" f").append(sa.getFrame())
+						.append(" start").append(sa.getStartCycle() - client.getGameCycle());
+				}
+				swordsLine.append(" anim ").append(npc.getAnimation());
+			}
+		}
+		if (swordsLine.length() > 0)
+		{
+			debug("swords" + swordsLine);
+		}
+
 		for (net.runelite.api.Actor actor : actors)
 		{
 			Set<Integer> now = new java.util.HashSet<>();
@@ -215,6 +241,7 @@ public class Ezekiel extends Encounter
 				if (!now.contains(id))
 				{
 					debug("spotanim " + id + " ended on " + who(actor));
+
 				}
 			}
 			if (now.isEmpty())
@@ -252,12 +279,24 @@ public class Ezekiel extends Encounter
 	}
 
 	@Override
+	public void onHitsplatApplied(net.runelite.api.events.HitsplatApplied event)
+	{
+		if (inFinale() && event.getActor() == client.getLocalPlayer())
+		{
+			debug("you were hit for " + event.getHitsplat().getAmount() + " (type " + event.getHitsplat().getHitsplatType()
+				+ ") at " + tile(event.getActor().getWorldLocation()));
+		}
+	}
+
+	@Override
 	public void onGraphicsObjectCreated(net.runelite.api.events.GraphicsObjectCreated event)
 	{
 		if (inFinale())
 		{
 			net.runelite.api.GraphicsObject g = event.getGraphicsObject();
-			debug("gfx " + g.getId() + " at " + tile(net.runelite.api.coords.WorldPoint.fromLocal(client, g.getLocation())));
+			// Delay before it starts, in client cycles (30 per tick): the strikes may be queued up
+			debug("gfx " + g.getId() + " at " + tile(net.runelite.api.coords.WorldPoint.fromLocal(client, g.getLocation()))
+				+ " starts in " + (g.getStartCycle() - client.getGameCycle()) + " cycles");
 		}
 	}
 

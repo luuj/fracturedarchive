@@ -344,33 +344,42 @@ public class FinalBossOverlay extends EncounterOverlay
 	}
 
 	/** The true tile of the player the vine has trapped, or the vine's own tile if no one's on it. */
-	/**
-	 * Void chain: the telegraphed players' tiles with the ticks until the next explosion, and each
-	 * explosion's tile as it lands.
-	 */
+	/** Void chain: the ticks until the next explosion, over your character (when you're warned). */
 	private void renderVoidChain(Graphics2D graphics)
 	{
-		Color c = FinalBoss.VOID_CHAIN_COLOR;
-		for (WorldPoint explosion : encounter.getChainExplosions())
-		{
-			renderTile(graphics, explosion, c, alpha(c, 70), config.borderWidth());
-		}
-
+		net.runelite.api.Player me = client.getLocalPlayer();
 		int ticks = encounter.getChainTicks();
-		for (net.runelite.api.Player player : encounter.getChainTargets())
+		if (me == null || ticks <= 0 || !encounter.getChainTargets().contains(me))
 		{
-			LocalPoint lp = player.getLocalLocation();
-			if (lp == null)
-			{
-				continue;
-			}
-			renderPoly(graphics, Perspective.getCanvasTilePoly(client, lp), c, null, config.borderWidth());
-			if (ticks > 0)
-			{
-				String text = Integer.toString(ticks);
-				renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, c);
-			}
+			return;
 		}
+		String text = Integer.toString(ticks);
+		// Size 20, one line below the usual over-head spot so other over-head counters (like a
+		// weapon tick counter) don't cover it
+		java.awt.Font font = graphics.getFont();
+		graphics.setFont(font.deriveFont(20f));
+		Point p = me.getCanvasTextLocation(graphics, text, config.textZ());
+		if (p != null)
+		{
+			// A thick black outline: the "2" shows on the tick each teal explosion goes off right
+			// beside you, and plain teal text disappears into it
+			int x = p.getX();
+			int y = p.getY() + graphics.getFontMetrics().getHeight();
+			graphics.setColor(Color.BLACK);
+			for (int dx = -2; dx <= 2; dx++)
+			{
+				for (int dy = -2; dy <= 2; dy++)
+				{
+					if (dx != 0 || dy != 0)
+					{
+						graphics.drawString(text, x + dx, y + dy);
+					}
+				}
+			}
+			graphics.setColor(FinalBoss.VOID_CHAIN_COLOR);
+			graphics.drawString(text, x, y);
+		}
+		graphics.setFont(font);
 	}
 
 	private void renderTrapped(Graphics2D graphics, WorldView wv, NPC vine)

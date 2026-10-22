@@ -195,4 +195,8 @@ public abstract class Encounter
 	public void onChatMessage(ChatMessage event)
 	{
 	}
+
+	public void onHitsplatApplied(net.runelite.api.events.HitsplatApplied event)
+	{
+	}
 }

@@ -205,6 +205,12 @@ public class FracturedArchivePlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onHitsplatApplied(net.runelite.api.events.HitsplatApplied event)
+	{
+		encounters.forEach(e -> e.onHitsplatApplied(event));
+	}
+
+	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
 		if (CONFIG_GROUP.equals(event.getGroup()))

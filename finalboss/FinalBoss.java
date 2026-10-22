@@ -190,7 +190,6 @@ public class FinalBoss extends Encounter
 		prayerEnding = false;
 		hybridPending = false;
 		clearVoidChain();
-		chainExplosions.clear();
 		deflectEndTick = -1;
 		deflectStartsShowing.clear();
 		sweepCount = 0;
@@ -360,7 +359,7 @@ public class FinalBoss extends Encounter
 	 * Phase 4 void chain: players get a telegraph (4340), then 3 ticks later explosions (4339)
 	 * land every 2 ticks, 6 in all, chasing them.
 	 */
-	static final Color VOID_CHAIN_COLOR = new Color(170, 0, 255);
+	static final Color VOID_CHAIN_COLOR = new Color(0, 200, 180);
 	private static final int VOID_CHAIN_TELEGRAPH = net.runelite.api.gameval.SpotanimID.VFX_VOID_CHAIN_PLAYER_TELEGRAPH;
 	private static final int VOID_CHAIN_EXPLOSION = net.runelite.api.gameval.SpotanimID.VFX_VOID_CHAIN_EXPLOSION;
 	private static final int VOID_CHAIN_FIRST_HIT = 3;
@@ -372,10 +371,6 @@ public class FinalBoss extends Encounter
 	private int chainHits;
 	/** When the last chain finished, so a telegraph still fading out doesn't start another. */
 	private int chainEndTick = -100;
-	/** Explosions on the ground. */
-	private final Map<WorldPoint, Integer> chainExplosions = new HashMap<>();
-	/** Each explosion's tile stays marked this long (until the next one lands). */
-	private static final int VOID_CHAIN_SHOWN = 2;
 
 	Set<net.runelite.api.Player> getChainTargets()
 	{
@@ -385,17 +380,26 @@ public class FinalBoss extends Encounter
 	/** Ticks until the next void chain explosion (0 = none coming). */
 	int getChainTicks()
 	{
-		return chainNextHitTick < 0 ? 0 : Math.max(0, chainNextHitTick - client.getTickCount());
+		if (chainNextHitTick < 0)
+		{
+			return 0;
+		}
+		// Worked out from the tick number straight away, without waiting for the game tick event
+		// (which comes at the end of the tick): otherwise each explosion tick shows nothing until
+		// then, and only the 1s are seen
+		int remaining = chainNextHitTick - client.getTickCount();
+		int hits = chainHits;
+		while (remaining <= 0 && hits + 1 < VOID_CHAIN_HITS)
+		{
+			remaining += VOID_CHAIN_GAP;
+			hits++;
+		}
+		return Math.max(0, remaining);
 	}
 
-	Set<WorldPoint> getChainExplosions()
-	{
-		return chainExplosions.keySet();
-	}
 
 	private void checkVoidChain()
 	{
-		chainExplosions.values().removeIf(t -> client.getTickCount() - t >= VOID_CHAIN_SHOWN);
 		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
 		if (wv == null)
 		{
@@ -418,10 +422,22 @@ public class FinalBoss extends Encounter
 				}
 			}
 		}
-		if (chainNextHitTick >= 0 && client.getTickCount() > chainNextHitTick + VOID_CHAIN_GAP)
+		// The explosions keep a fixed beat (3 ticks after the warning, then every 2), so the count
+		// moves on by the clock rather than waiting for each explosion to show up. Waiting made the
+		// "2" get skipped: the explosion only arrives at the very end of its tick.
+		if (chainNextHitTick >= 0 && client.getTickCount() >= chainNextHitTick)
 		{
-			// Missed the explosions; don't leave it hanging
-			clearVoidChain();
+			voidChainHit();
+		}
+		if (chainNextHitTick >= 0)
+		{
+			// Every warned player's tile each tick, to work out which tick each explosion aims at
+			StringBuilder sb = new StringBuilder("void chain (hit " + (chainHits + 1) + " in " + getChainTicks() + "):");
+			for (net.runelite.api.Player player : chainTargets)
+			{
+				sb.append(' ').append(player.getName()).append('@').append(tile(player.getWorldLocation()));
+			}
+			debug(sb.toString());
 		}
 	}
 
@@ -437,7 +453,7 @@ public class FinalBoss extends Encounter
 		}
 		else
 		{
-			chainNextHitTick = client.getTickCount() + VOID_CHAIN_GAP;
+			chainNextHitTick += VOID_CHAIN_GAP;
 		}
 	}
 
@@ -1030,11 +1046,6 @@ public class FinalBoss extends Encounter
 	{
 		int id = event.getGraphicsObject().getId();
 		int tick = client.getTickCount();
-		if (id == VOID_CHAIN_EXPLOSION)
-		{
-			chainExplosions.put(WorldPoint.fromLocal(client, event.getGraphicsObject().getLocation()), tick);
-			voidChainHit();
-		}
 		if (unleashing && id == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P2_AOE_DODGE && tick != lastWaveTick)
 		{
 			// Each wave drops many tiles on the same tick: count the tick once

@@ -184,9 +184,9 @@ public class Bork extends Encounter
 	}
 
 	/**
-	 * Safe if enough of the tile is hidden behind the Smork from where Bork stomps (3 of 9 points
-	 * across it). Fitted to the tiles right around the Smork in the logged stomps: it never marked
-	 * a hit tile safe, and left out 8 of the 89 safe ones.
+	 * Safe if at least 13 of 100 points spread across the tile are hidden behind the Smork's
+	 * middle from where Bork stomps. Fitted to 53 logged stomps (316 safe tiles next to the
+	 * Smork): no hit tile reached more than 11, and only 4 safe ones came in under 13.
 	 */
 	private static boolean inShadow(double ox, double oy, int x, int y, WorldPoint smork)
 	{
@@ -195,17 +195,17 @@ public class Bork extends Encounter
 		double x1 = smork.getX() + 2.5;
 		double y1 = smork.getY() + 2.5;
 		int hidden = 0;
-		for (double px : new double[]{0.1, 0.5, 0.9})
+		for (int i = 0; i < 10; i++)
 		{
-			for (double py : new double[]{0.1, 0.5, 0.9})
+			for (int j = 0; j < 10; j++)
 			{
-				if (segmentHitsBox(ox, oy, x + px, y + py, x0, y0, x1, y1))
+				if (segmentHitsBox(ox, oy, x + i / 10.0 + 0.05, y + j / 10.0 + 0.05, x0, y0, x1, y1))
 				{
 					hidden++;
 				}
 			}
 		}
-		return hidden >= 3;
+		return hidden >= 13;
 	}
 
 	/** Whether the segment from (ax, ay) to (bx, by) passes through the box. */

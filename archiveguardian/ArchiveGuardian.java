@@ -46,6 +46,7 @@ public class ArchiveGuardian extends Encounter
 	 */
 	private final Map<Integer, Integer> attackTicks = Map.of(
 		AnimationID.NPC_ARCHIVE_GUARDIAN_RANGE_ATTACK01, 5,
+		AnimationID.NPC_ARCHIVE_GUARDIAN_MELEE_ATTACK01, 5,
 		// The special's length is BEAM_TICKS or MUSHROOM_ATTACK_TICKS (see startCounter)
 		AnimationID.NPC_ARCHIVE_GUARDIAN_SPECIAL_ATTACK01, 0,
 		// Despite its name, this is the animation the special attack actually plays in game
@@ -57,10 +58,12 @@ public class ArchiveGuardian extends Encounter
 	private static final Color RANGED_COLOR = Color.GREEN;
 	private static final Color BEAM_COLOR = new Color(255, 115, 0);
 	private static final Color GROUND_COLOR = Color.RED;
+	private static final Color MELEE_COLOR = Color.RED;
 	private static final Color MUSHROOM_ATTACK_COLOR = Color.MAGENTA;
 
 	private final Map<Integer, Color> attackColors = Map.of(
 		AnimationID.NPC_ARCHIVE_GUARDIAN_RANGE_ATTACK01, RANGED_COLOR,
+		AnimationID.NPC_ARCHIVE_GUARDIAN_MELEE_ATTACK01, MELEE_COLOR,
 		AnimationID.NPC_ARCHIVE_GUARDIAN_SPECIAL_ATTACK01, BEAM_COLOR,
 		AnimationID.NPC_ARCHIVE_GUARDIAN_ENRAGED_PHASE01, BEAM_COLOR,
 		AnimationID.NPC_ARCHIVE_GUARDIAN_IDLE_TO_GROUND01, GROUND_COLOR

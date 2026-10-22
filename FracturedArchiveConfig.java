@@ -403,6 +403,18 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		keyName = "xarthFireballs",
+		name = "Fireballs",
+		description = "Mark where each of Xarth's fireballs will land (where a corpse spawns), with the ticks until it does (orange)",
+		position = 1,
+		section = xarthSection
+	)
+	default boolean xarthFireballs()
+	{
+		return true;
+	}
+
 	// Final boss (Ocellus)
 
 	@ConfigItem(
@@ -507,7 +519,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "ocellusVoidChain",
 		name = "Void chain",
-		description = "Phase 4: outline players with the void chain warning, count down to each of its 6 explosions, and mark where they land (purple)",
+		description = "Phase 4: when you get the void chain warning, count down to each of its 6 explosions over your character (teal)",
 		position = 4,
 		section = finalbossSection
 	)
