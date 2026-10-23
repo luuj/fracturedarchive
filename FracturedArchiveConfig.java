@@ -415,6 +415,19 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
+	@Range(min = 1, max = 20)
+	@ConfigItem(
+		keyName = "xarthVolleyTicks",
+		name = "Corpse volley ticks",
+		description = "What the attack counter starts at when Xarth throws his first corpse fireball (more corpses in bigger parties take longer)",
+		position = 2,
+		section = xarthSection
+	)
+	default int xarthVolleyTicks()
+	{
+		return 6;
+	}
+
 	// Final boss (Ocellus)
 
 	@ConfigItem(

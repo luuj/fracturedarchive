@@ -93,7 +93,20 @@ public class Bork extends Encounter
 	/** Ticks until the next stomp lands (0 = none coming). */
 	int getStompTicks()
 	{
-		return nextStompTick < 0 ? 0 : Math.max(0, nextStompTick - client.getTickCount());
+		if (nextStompTick < 0)
+		{
+			return 0;
+		}
+		// Worked out from the tick number straight away, without waiting for the game tick event
+		// (which comes at the end of the tick): otherwise each stomp tick shows nothing until then
+		int remaining = nextStompTick - client.getTickCount();
+		int left = stompsLeft;
+		while (remaining <= 0 && left > 1)
+		{
+			remaining += STOMP_GAP;
+			left--;
+		}
+		return Math.max(0, remaining);
 	}
 
 	/**

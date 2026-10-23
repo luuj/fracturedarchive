@@ -130,6 +130,7 @@ public class Xarth extends Encounter
 	private static final int FIREBALL = 4034;
 	/** How long after the first fireball to ignore his repeated volley animations. */
 	private static final int VOLLEY_TICKS = 7;
+
 	private int lastAttackTick = -1;
 	private int volleyEndTick = -1;
 	/** His ranged attacks have started: from then on he doesn't use magic on players. */
@@ -159,10 +160,11 @@ public class Xarth extends Encounter
 			fireballs.add(p);
 			if (client.getTickCount() >= volleyEndTick && lastAttackTick >= 0)
 			{
-				// The corpse volley: no attack counter through it (his repeated volley animations
-				// are ignored until it's over)
+				// The corpse volley: count down from the "Corpse volley ticks" setting from the first fireball (his repeated volley
+				// animations are ignored until it's over). +1 like the other counts, for the tick
+				// that's taken off before it's first shown.
 				volleyEndTick = client.getTickCount() + VOLLEY_TICKS;
-				attackTicks = 0;
+				attackTicks = config.xarthVolleyTicks() + 1;
 			}
 		}
 	}

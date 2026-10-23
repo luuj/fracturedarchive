@@ -64,6 +64,7 @@ public class EzekielOverlay extends EncounterOverlay
 			return;
 		}
 
+		Map<NPC, Integer> order = swordOrder();
 		for (Map.Entry<NPC, Ezekiel.SwordTrack> entry : encounter.getSwords().entrySet())
 		{
 			NPC sword = entry.getKey();
@@ -86,6 +87,13 @@ public class EzekielOverlay extends EncounterOverlay
 				String text = Integer.toString(ticks);
 				Point point = sword.getCanvasTextLocation(graphics, text, config.textZ());
 				renderText(graphics, point, text, showLane ? SWORD_BORDER : Color.WHITE);
+			}
+
+			// Which goes 1st, 2nd, 3rd in a set on one side, under the countdown (size 18)
+			Integer step = order.get(sword);
+			if (config.ezekielSwordTimer() && step != null)
+			{
+				renderStackedText(graphics, sword, Integer.toString(step), Color.WHITE, 18f);
 			}
 		}
 
@@ -128,6 +136,75 @@ public class EzekielOverlay extends EncounterOverlay
 	}
 
 	/**
+	 * Swords on the same side that went down together go off one after another: flying east or
+	 * west, the northern one first, then the middle, then the southern; flying north or south,
+	 * the western one first, then the middle, then the eastern.
+	 */
+	private Map<NPC, Integer> swordOrder()
+	{
+		// Group by direction, then split where the drops are more than 2 ticks apart
+		Map<String, java.util.List<NPC>> byDirection = new java.util.HashMap<>();
+		for (Map.Entry<NPC, Ezekiel.SwordTrack> entry : encounter.getSwords().entrySet())
+		{
+			Ezekiel.SwordTrack track = entry.getValue();
+			if (!track.hasDirection() || encounter.ticksUntilLaunch(track) <= 0 || entry.getKey().getWorldLocation() == null)
+			{
+				continue;
+			}
+			byDirection.computeIfAbsent(track.getDx() + "," + track.getDy(), k -> new java.util.ArrayList<>()).add(entry.getKey());
+		}
+		java.util.List<java.util.List<NPC>> setList = new java.util.ArrayList<>();
+		for (java.util.List<NPC> group : byDirection.values())
+		{
+			group.sort(java.util.Comparator.comparingInt(n -> encounter.getSwords().get(n).getSpawnTick()));
+			java.util.List<NPC> current = null;
+			int last = Integer.MIN_VALUE;
+			for (NPC n : group)
+			{
+				int spawn = encounter.getSwords().get(n).getSpawnTick();
+				if (current == null || spawn - last > 2)
+				{
+					current = new java.util.ArrayList<>();
+					setList.add(current);
+				}
+				current.add(n);
+				last = spawn;
+			}
+		}
+		Map<String, java.util.List<NPC>> sets = new java.util.HashMap<>();
+		for (int i = 0; i < setList.size(); i++)
+		{
+			sets.put(Integer.toString(i), setList.get(i));
+		}
+
+		Map<NPC, Integer> order = new java.util.HashMap<>();
+		for (java.util.List<NPC> set : sets.values())
+		{
+			if (set.size() < 3)
+			{
+				// Only sets of three on one side
+				continue;
+			}
+			Ezekiel.SwordTrack track = encounter.getSwords().get(set.get(0));
+			if (track.getDx() != 0)
+			{
+				// Flying east or west: north first
+				set.sort((a, b) -> Integer.compare(b.getWorldLocation().getY(), a.getWorldLocation().getY()));
+			}
+			else
+			{
+				// Flying north or south: west first
+				set.sort((a, b) -> Integer.compare(a.getWorldLocation().getX(), b.getWorldLocation().getX()));
+			}
+			for (int i = 0; i < set.size(); i++)
+			{
+				order.put(set.get(i), i + 1);
+			}
+		}
+		return order;
+	}
+
+	/**
 	 * During the finale: the far row of the 3x3 in front of Ezekiel, which is where to dodge to.
 	 * "In front" is the way he's facing, rounded to north, south, east or west.
 	 */
@@ -152,10 +229,23 @@ public class EzekielOverlay extends EncounterOverlay
 		LocalPoint rowMiddle = center.plus(dx * toLastRow * tile, dy * toLastRow * tile);
 		Color safe = DODGE_COLOR;
 		Color safeFill = new Color(safe.getRed(), safe.getGreen(), safe.getBlue(), 70);
+		java.util.Map<net.runelite.api.coords.WorldPoint, Integer> order = encounter.getStrikeOrder();
 		for (int i = -half; i <= size - 1 - half; i++)
 		{
 			LocalPoint lp = rowMiddle.plus(dy * i * tile, dx * i * tile);
 			renderPoly(graphics, Perspective.getCanvasTilePoly(client, lp), safe, safeFill, config.borderWidth());
+
+			// Once this round's strikes are known: which back-row tile to stand on 1st, 2nd, 3rd
+			Integer step = order.get(net.runelite.api.coords.WorldPoint.fromLocal(client, lp));
+			if (step != null)
+			{
+				// Size 18
+				java.awt.Font font = graphics.getFont();
+				graphics.setFont(font.deriveFont(18f));
+				String text = Integer.toString(step);
+				renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, Color.WHITE);
+				graphics.setFont(font);
+			}
 		}
 	}
 

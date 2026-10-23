@@ -26,6 +26,7 @@ public class DreadnothOverlay extends EncounterOverlay
 	private static final Color SPLATTER_FILL = new Color(180, 0, 0, 0);
 	private static final Color INCOMING_COLOR = new Color(31, 236, 101);
 	private static final Color JUMP_COLOR = new Color(255, 200, 0);
+	private static final Color COOLDOWN_COLOR = Color.CYAN;
 	private static final Color RANGED_COLOR = Color.GREEN;
 
 	@Inject
@@ -72,6 +73,12 @@ public class DreadnothOverlay extends EncounterOverlay
 		{
 			String text = Integer.toString(encounter.getJumpTicks());
 			renderText(graphics, dreadnoth.getCanvasTextLocation(graphics, text, config.textZ()), text, JUMP_COLOR);
+		}
+		else if (config.dreadnothJumpCounter() && dreadnoth != null && encounter.getCooldownTicks() > 0)
+		{
+			// The jump cooldown after a fast jump, in cyan
+			String text = Integer.toString(encounter.getCooldownTicks());
+			renderText(graphics, dreadnoth.getCanvasTextLocation(graphics, text, config.textZ()), text, COOLDOWN_COLOR);
 		}
 
 		if (config.dreadnothIncoming())

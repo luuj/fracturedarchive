@@ -66,6 +66,12 @@ public class Dreadnoth extends Encounter
 	private static final int JUMP_TICKS = 6;
 	private static final int FAST_JUMP_TICKS = 4;
 	private boolean glubbed;
+	/** The jump in progress is a fast one (it gets a cooldown after). */
+	private boolean fastJump;
+	/** After a fast jump lands: the cooldown before he can jump again (0 = none). */
+	private static final int JUMP_COOLDOWN_TICKS = 4;
+	@lombok.Getter
+	private int cooldownTicks;
 
 	/** Ticks until Dreadnoth lands from a jump (0 = not jumping). */
 	@Getter
@@ -101,6 +107,8 @@ public class Dreadnoth extends Encounter
 		rangedShots.clear();
 		jumpTicks = 0;
 		glubbed = false;
+		fastJump = false;
+		cooldownTicks = 0;
 	}
 
 	@Override
@@ -111,12 +119,15 @@ public class Dreadnoth extends Encounter
 			return;
 		}
 		NPC npc = (NPC) event.getActor();
-		// Only the start of a jump, so the second jump animation doesn't restart it mid-air
-		if (bossIds().contains(npc.getId()) && JUMP_ANIMATIONS.contains(npc.getAnimation()) && jumpTicks == 0)
+		// The start of a jump. Mid-air, the second jump animation doesn't restart it; but back to
+		// back jumps start on the tick the last one lands (when 1 is still showing), so those do.
+		if (bossIds().contains(npc.getId()) && JUMP_ANIMATIONS.contains(npc.getAnimation()) && jumpTicks <= 1)
 		{
 			boss = npc;
 			// +1 so the first number shown is the full count
 			jumpTicks = (glubbed ? FAST_JUMP_TICKS : JUMP_TICKS) + 1;
+			fastJump = glubbed;
+			cooldownTicks = 0;
 		}
 	}
 
@@ -232,9 +243,22 @@ public class Dreadnoth extends Encounter
 	@Override
 	public void onGameTick(GameTick event)
 	{
-		if (jumpTicks > 0)
+		if (cooldownTicks > 0)
 		{
-			jumpTicks--;
+			cooldownTicks--;
+		}
+		if (jumpTicks > 0 && --jumpTicks == 0 && fastJump)
+		{
+			// In the fast phase his jump has a 4 tick cooldown after he lands. Set during the game
+			// tick, so it's shown as is (no +1).
+			cooldownTicks = JUMP_COOLDOWN_TICKS;
+		}
+
+		// Below 25% hp he jumps fast too, as if he'd said "glub glub"
+		if (!glubbed && boss != null && boss.getHealthScale() > 0 && boss.getHealthRatio() >= 0
+			&& boss.getHealthRatio() * 4 < boss.getHealthScale())
+		{
+			glubbed = true;
 		}
 
 		// Forget blobs once they've landed
