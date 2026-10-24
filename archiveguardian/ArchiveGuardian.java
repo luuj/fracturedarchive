@@ -51,7 +51,7 @@ public class ArchiveGuardian extends Encounter
 		AnimationID.NPC_ARCHIVE_GUARDIAN_SPECIAL_ATTACK01, 0,
 		// Despite its name, this is the animation the special attack actually plays in game
 		AnimationID.NPC_ARCHIVE_GUARDIAN_ENRAGED_PHASE01, 0,
-		AnimationID.NPC_ARCHIVE_GUARDIAN_IDLE_TO_GROUND01, 40
+		AnimationID.NPC_ARCHIVE_GUARDIAN_IDLE_TO_GROUND01, 35
 	);
 
 	/** Counter colors (the colors you had saved). */

@@ -16,25 +16,22 @@ import net.runelite.client.plugins.fracturedarchive.necromancer.Necromancer;
 import net.runelite.client.plugins.fracturedarchive.xarth.Xarth;
 
 /**
- * Highlights the true tile of the player each boss is going after (red by default), and of the
- * player each Smork has picked for its fire bomb (blue by default), until the bomb comes out.
+ * Highlights the true tile of the player each boss is going after (the tank), in pink with
+ * "Tank" on it.
  */
 @Singleton
 class TargetOverlay extends EncounterOverlay
 {
-	/** Boss targets red, Smork targets blue. */
-	private static final Color BOSS_TARGET_COLOR = Color.RED;
-	private static final Color SMORK_TARGET_COLOR = Color.BLUE;
+	/** Boss targets pink. */
+	private static final Color BOSS_TARGET_COLOR = new Color(255, 105, 180);
 
 	private final List<Encounter> encounters;
-	private final Bork bork;
 
 	@Inject
 	TargetOverlay(FracturedArchiveConfig config, ArchiveGuardian guardian, Bork bork, Ezekiel ezekiel,
 		Dreadnoth dreadnoth, Necromancer necromancer, Xarth xarth, DagonhaiTrio dagonhaiTrio, FinalBoss finalBoss)
 	{
 		super(config);
-		this.bork = bork;
 		encounters = List.of(guardian, bork, ezekiel, dreadnoth, necromancer, xarth, dagonhaiTrio, finalBoss);
 	}
 
@@ -46,17 +43,34 @@ class TargetOverlay extends EncounterOverlay
 			return;
 		}
 
-		// Smorks first, so a player both Bork and a Smork are on shows the boss's color.
-		// Each Smork's pick stays highlighted until its fire bomb comes out.
-		for (Player player : bork.getSmorkTargets().values())
-		{
-			highlight(graphics, player, SMORK_TARGET_COLOR);
-		}
-
 		for (Encounter encounter : encounters)
 		{
-			highlight(graphics, encounter.getTarget(), BOSS_TARGET_COLOR);
+			Player tank = encounter.getTarget();
+			highlight(graphics, tank, BOSS_TARGET_COLOR);
+			label(graphics, tank, "Tank", BOSS_TARGET_COLOR);
 		}
+	}
+
+	/** A word on the player's true tile, at size 12. */
+	private void label(Graphics2D graphics, Player player, String text, Color color)
+	{
+		if (player == null)
+		{
+			return;
+		}
+		net.runelite.api.coords.LocalPoint lp = net.runelite.api.coords.LocalPoint.fromWorld(client, player.getWorldLocation());
+		if (lp == null)
+		{
+			return;
+		}
+		java.awt.Font font = graphics.getFont();
+		graphics.setFont(font.deriveFont(12f));
+		net.runelite.api.Point point = net.runelite.api.Perspective.getCanvasTextLocation(client, graphics, lp, text, 0);
+		if (point != null)
+		{
+			renderText(graphics, point, text, color);
+		}
+		graphics.setFont(font);
 	}
 
 	/** The true (server-side) tile, not where the player model is drawn mid-walk. */

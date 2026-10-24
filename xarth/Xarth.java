@@ -4,7 +4,6 @@ import java.awt.Color;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import lombok.Getter;
 import net.runelite.api.NPC;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameTick;
@@ -36,9 +35,33 @@ public class Xarth extends Encounter
 		AnimationID.XARTH_ATTACK_SUMMON_01);
 
 	/** Attack counter: ticks remaining (0 = none) and the attack that started it. */
-	@Getter
 	private int attackTicks;
 	private int attackAnimation = -1;
+	/**
+	 * The tick the corpse volley's first fireball was seen (-1 = none). Its count is worked out
+	 * from the tick number: the fireball can show up before or after the game tick event within
+	 * a tick, so counting it down in onGameTick sometimes started it one higher.
+	 */
+	private int volleyStartTick = -1;
+
+	int getAttackTicks()
+	{
+		if (volleyStartTick >= 0)
+		{
+			if (client.getTickCount() < volleyStartTick)
+			{
+				// The volley animation's tick: the count starts on the next one
+				return 0;
+			}
+			int left = config.xarthVolleyTicks() - (client.getTickCount() - volleyStartTick);
+			if (left > 0)
+			{
+				return left;
+			}
+			volleyStartTick = -1;
+		}
+		return attackTicks;
+	}
 
 	@Inject
 	private XarthOverlay overlay;
@@ -67,6 +90,7 @@ public class Xarth extends Encounter
 		super.reset();
 		attackTicks = 0;
 		attackAnimation = -1;
+		volleyStartTick = -1;
 		fireballs.clear();
 		lastAttackTick = -1;
 		volleyEndTick = -1;
@@ -102,12 +126,16 @@ public class Xarth extends Encounter
 			if (animation == AnimationID.XARTH_ATTACK_MAGIC_01 && rangedPhase)
 			{
 				// Once his ranged attacks have started, his magic animation is only ever the corpse
-				// volley: show nothing until the first fireball starts its count
+				// volley. Count it from the animation, starting the tick after: his first fireball
+				// comes 1 or 2 ticks after it, so counting from the fireball was off by one at times.
 				attackTicks = 0;
+				volleyStartTick = client.getTickCount() + 1;
+				volleyEndTick = client.getTickCount() + VOLLEY_TICKS;
 				return;
 			}
 			// +1 so the first number shown is the full attack speed
 			attackTicks = ATTACK_SPEED + 1;
+			volleyStartTick = -1;
 		}
 	}
 
@@ -158,11 +186,11 @@ public class Xarth extends Encounter
 			fireballs.add(p);
 			if (client.getTickCount() >= volleyEndTick && lastAttackTick >= 0)
 			{
-				// The corpse volley: count down from the "Corpse volley ticks" setting from the first fireball (his repeated volley
-				// animations are ignored until it's over). +1 like the other counts, for the tick
-				// that's taken off before it's first shown.
+				// The corpse volley: count down from the "Corpse volley ticks" setting from the first
+				// fireball (his repeated volley animations are ignored until it's over)
 				volleyEndTick = client.getTickCount() + VOLLEY_TICKS;
-				attackTicks = config.xarthVolleyTicks() + 1;
+				attackTicks = 0;
+				volleyStartTick = client.getTickCount();
 			}
 		}
 	}

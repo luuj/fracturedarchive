@@ -192,10 +192,10 @@ public class FinalBoss extends Encounter
 	protected void reset()
 	{
 		super.reset();
-		lastChargeTick = -100;
 		tendrilSides.clear();
 		tendrilStarts.clear();
 		tendrilChargeTick = -100;
+		inCenter = false;
 		lastShotTick = -10;
 		countedShots.clear();
 		attackStyle = null;
@@ -358,18 +358,23 @@ public class FinalBoss extends Encounter
 	 * Phase 1 center: after he teleports in he does 4 quick ground attacks (14809), each
 	 * spawning two tendrils. Their tiles stay marked until they go off (the graphics only flash).
 	 */
-	private int lastChargeTick = -100;
 	/**
 	 * Each quick attack spawns two tendrils (diagonal lines toward him) on two neighbouring
-	 * sides. They don't go off together: one flashes 4 ticks after spawning, the other 6. Going
+	 * sides. They don't go off together: the second goes 2 ticks after the first. Going
 	 * clockwise (0, 90, 180, 270), the first is the one whose neighbour is the next side round.
+	 * Counted from when the tendrils appear (his charge animation comes about 2 ticks earlier).
 	 */
-	private static final int FIRST_TENDRIL_TICKS = 4;
-	private static final int SECOND_TENDRIL_TICKS = 6;
-	/** This attack's tendril tiles by side (0-3), and its outermost tile per side. */
+	private static final int FIRST_TENDRIL_TICKS = 6;
+	private static final int SECOND_TENDRIL_TICKS = 8;
+	/** This attack's tendril tiles by side (0-3), and the outer tile each one starts from. */
 	private final Map<WorldPoint, Integer> tendrilSides = new HashMap<>();
 	private final Map<Integer, WorldPoint> tendrilStarts = new HashMap<>();
 	private int tendrilChargeTick = -100;
+	/**
+	 * He's in the center (from teleporting in until his finishing move, 14810). His slow ground
+	 * attack in the corners uses the same tendril graphics, so only count them here.
+	 */
+	private boolean inCenter;
 
 	/** Ticks until this tendril tile goes off, by tile (only tiles still to go off). */
 	Map<WorldPoint, Integer> getTendrilTiles()
@@ -387,7 +392,10 @@ public class FinalBoss extends Encounter
 		return left;
 	}
 
-	/** The outermost tile of each tendril still to go off, and its ticks left. */
+	/**
+	 * The inner end of each tendril still to go off (the tile closest to him: the one furthest
+	 * from where it starts), and its ticks left.
+	 */
 	Map<WorldPoint, Integer> getTendrilLabels()
 	{
 		Map<WorldPoint, Integer> labels = new HashMap<>();
@@ -395,10 +403,21 @@ public class FinalBoss extends Encounter
 		for (Map.Entry<Integer, WorldPoint> e : tendrilStarts.entrySet())
 		{
 			int ticks = tendrilTicks(e.getKey()) - elapsed;
-			if (ticks > 0)
+			if (ticks <= 0)
 			{
-				labels.put(e.getValue(), ticks);
+				continue;
 			}
+			WorldPoint start = e.getValue();
+			WorldPoint inner = start;
+			for (Map.Entry<WorldPoint, Integer> t : tendrilSides.entrySet())
+			{
+				if (t.getValue().equals(e.getKey())
+					&& start.distanceTo2D(t.getKey()) > start.distanceTo2D(inner))
+				{
+					inner = t.getKey();
+				}
+			}
+			labels.put(inner, ticks);
 		}
 		return labels;
 	}
@@ -1086,9 +1105,15 @@ public class FinalBoss extends Encounter
 		int animation = event.getActor().getAnimation();
 		debug("anim " + animation);
 
-		if (animation == AnimationID.NPC_OCELLUS_PHASE1_CHARGE)
+		if (animation == AnimationID.NPC_OCELLUS_PHASE1_TELEPORT_IN)
 		{
-			lastChargeTick = client.getTickCount();
+			inCenter = true;
+		}
+		else if (animation == AnimationID.NPC_OCELLUS_PHASE1_EXPEND
+			|| animation == AnimationID.NPC_OCELLUS_PHASE1_TELEPORT_OUT
+			|| animation == AnimationID.NPC_OCELLUS_PHASE1_TRANSFORMATION)
+		{
+			inCenter = false;
 		}
 
 		if (animation == AnimationID.NPC_OCELLUS_PHASE3_UNLEASH_OUT || animation == AnimationID.NPC_OCELLUS_PHASE3_UNLEASH_OUT_90F)
@@ -1252,12 +1277,12 @@ public class FinalBoss extends Encounter
 		}
 
 		int side = tendrilSide(id);
-		if (side >= 0 && tick - lastChargeTick <= 1)
+		if (side >= 0 && inCenter)
 		{
-			if (tendrilChargeTick != lastChargeTick)
+			if (tick - tendrilChargeTick > 2)
 			{
-				// A new attack: forget the last one's tendrils
-				tendrilChargeTick = lastChargeTick;
+				// A new attack (they're 8 ticks apart): forget the last one's tendrils
+				tendrilChargeTick = tick;
 				tendrilSides.clear();
 				tendrilStarts.clear();
 			}

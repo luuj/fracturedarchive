@@ -107,8 +107,12 @@ public class FinalBossOverlay extends EncounterOverlay
 				LocalPoint lp = LocalPoint.fromWorld(wv, label.getKey());
 				if (lp != null)
 				{
+					// Size 20, like the melee/sweep count
+					java.awt.Font font = graphics.getFont();
+					graphics.setFont(font.deriveFont(20f));
 					String text = Integer.toString(label.getValue());
 					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, FinalBoss.SPECIAL_COLOR);
+					graphics.setFont(font);
 				}
 			}
 

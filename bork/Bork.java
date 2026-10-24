@@ -55,14 +55,14 @@ public class Bork extends Encounter
 		AnimationID.NPC_BORK_12_CYCLE_STUN01,
 		AnimationID.NPC_BORK_14_CYCLE_STUN01);
 
-	// Bork attacking again means the stun is over, even if the counter hasn't run out
+	// Bork attacking again means the stun is over, even if the counter hasn't run out. Not the
+	// stomp wind-up ("Bork very angry!!"): that comes on the stun counter's last tick, and
+	// clearing it there hid the 1.
 	private static final Set<Integer> ATTACK_ANIMATIONS = Set.of(
 		AnimationID.NPC_BORK_GONG_MELEE01,
 		AnimationID.NPC_BORK_ENRAGED_GONG_ATTACK_IN01,
 		AnimationID.NPC_BORK_ENRAGED_GONG_ATTACK01,
-		AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK_IN01,
 		AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK01,
-		AnimationID.NPC_BORK_IDLE_TO_ENRAGED_STOMP_ATTACK_IN01,
 		AnimationID.NPC_BORK_IDLE_TO_ENRAGED_GONG_ATTACK_IN01);
 
 	/** The player Bork last called out in chat, or null. */
@@ -95,6 +95,12 @@ public class Bork extends Encounter
 		// Worked out from the tick number straight away. The hit tiles flash 3, 6, 9 and 12 ticks
 		// after the wind-up, but the stomps you feel land a stomp later: 6, 9, 12 and 15
 		int elapsed = client.getTickCount() - stompStartTick;
+		if (elapsed < STOMP_GAP)
+		{
+			// Nothing while he winds up ("Bork very angry!!"): the first countdown starts when
+			// the hit tiles first flash
+			return 0;
+		}
 		for (int k = 2; k <= STOMP_COUNT + 1; k++)
 		{
 			if (STOMP_GAP * k > elapsed)
