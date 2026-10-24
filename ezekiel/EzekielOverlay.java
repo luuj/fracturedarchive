@@ -94,7 +94,7 @@ public class EzekielOverlay extends EncounterOverlay
 			if (config.ezekielSwordTimer() && step != null)
 			{
 				Color c = step == 1 ? Color.GREEN : step == 2 ? Color.YELLOW : Color.RED;
-				renderStackedText(graphics, sword, Integer.toString(step), c, 18f);
+				renderStackedText(graphics, sword, Integer.toString(step), c, 20f);
 			}
 		}
 
@@ -126,7 +126,7 @@ public class EzekielOverlay extends EncounterOverlay
 		if (config.ezekielStarCounter() && star > 0)
 		{
 			// Stacked directly under the tick counter (like Theatre), in a smaller font
-			renderStackedText(graphics, ezekiel, Integer.toString(star), star >= 3 ? Ezekiel.SPECIAL_COLOR : Ezekiel.MELEE_COLOR, 14f);
+			renderStackedText(graphics, ezekiel, Integer.toString(star), star >= 3 ? Ezekiel.SPECIAL_COLOR : Ezekiel.MELEE_COLOR, 20f);
 		}
 
 		if (config.ezekielAttackCounter() && encounter.getAttackTicks() > 0)
@@ -240,9 +240,9 @@ public class EzekielOverlay extends EncounterOverlay
 			Integer step = order.get(net.runelite.api.coords.WorldPoint.fromLocal(client, lp));
 			if (step != null)
 			{
-				// Size 18
+				// Size 20
 				java.awt.Font font = graphics.getFont();
-				graphics.setFont(font.deriveFont(18f));
+				graphics.setFont(font.deriveFont(20f));
 				String text = Integer.toString(step);
 				renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text,
 					step == 1 ? Color.GREEN : step == 2 ? Color.YELLOW : Color.RED);

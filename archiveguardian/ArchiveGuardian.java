@@ -57,7 +57,7 @@ public class ArchiveGuardian extends Encounter
 	/** Counter colors (the colors you had saved). */
 	private static final Color RANGED_COLOR = Color.GREEN;
 	private static final Color BEAM_COLOR = new Color(255, 115, 0);
-	private static final Color GROUND_COLOR = Color.RED;
+	private static final Color GROUND_COLOR = new Color(170, 0, 255);
 	private static final Color MELEE_COLOR = Color.RED;
 	private static final Color MUSHROOM_ATTACK_COLOR = Color.MAGENTA;
 

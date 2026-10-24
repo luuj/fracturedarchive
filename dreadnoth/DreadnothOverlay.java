@@ -22,9 +22,9 @@ public class DreadnothOverlay extends EncounterOverlay
 	private static final int CYCLES_PER_TICK = 30;
 
 	/** Colors (the colors you had saved). */
-	private static final Color SPLATTER_BORDER = new Color(244, 23, 165);
-	private static final Color SPLATTER_FILL = new Color(180, 0, 0, 0);
-	private static final Color INCOMING_COLOR = new Color(31, 236, 101);
+	private static final Color SPLATTER_BORDER = Color.RED;
+	private static final Color SPLATTER_FILL = new Color(255, 0, 0, 0);
+	private static final Color INCOMING_COLOR = Color.GREEN;
 	private static final Color JUMP_COLOR = Color.RED;
 	private static final Color COOLDOWN_COLOR = Color.YELLOW;
 	private static final Color RANGED_COLOR = Color.GREEN;

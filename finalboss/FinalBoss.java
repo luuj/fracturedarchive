@@ -40,7 +40,7 @@ public class FinalBoss extends Encounter
 {
 	/** Colors (the colors you had saved). */
 	static final Color MELEE_COLOR = Color.RED;
-	static final Color PROJECTILE_COLOR = Color.MAGENTA;
+	static final Color PROJECTILE_COLOR = Color.CYAN;
 	static final Color PRAYER_COLOR = new Color(80, 160, 255);
 	static final Color SPECIAL_COLOR = new Color(255, 115, 0);
 	static final Color MAGIC_COLOR = Color.CYAN;
@@ -51,8 +51,8 @@ public class FinalBoss extends Encounter
 	static final Color NEXT_CROSSING_COLOR = new Color(255, 255, 160);
 	static final Color SOUL_FRAGMENT_COLOR = Color.CYAN;
 	static final Color TRAPPED_COLOR = Color.GREEN;
-	static final Color AUGMENTER_COLOR = Color.BLUE;
-	static final Color RIFT_COLOR = Color.MAGENTA;
+	static final Color AUGMENTER_COLOR = Color.CYAN;
+	static final Color RIFT_COLOR = new Color(170, 0, 255);
 	static final Color SIPHON_COLOR = Color.GREEN;
 
 	private static final Set<Integer> BOSS_IDS = Set.of(NpcID.TFA_OCELLUS_P1, NpcID.TFA_OCELLUS_P2, NpcID.TFA_OCELLUS_P3);
@@ -66,7 +66,7 @@ public class FinalBoss extends Encounter
 
 	/** Attacks that start the counter, by style. Timings aren't confirmed yet. */
 	private static final Map<Integer, AttackStyle> ATTACKS = Map.ofEntries(
-		// Phase 3 only: no attack counter in phases 1 and 2
+		// Phase 3 (phase 1's water and fire shots are counted from the effect on him instead)
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC, AttackStyle.MELEE),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC_SILENT, AttackStyle.MELEE),
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_MELEE_HYBRID, AttackStyle.MELEE),
@@ -146,6 +146,17 @@ public class FinalBoss extends Encounter
 	 */
 	private int sweepCount;
 	private int sweepShownUntil = -1;
+	/**
+	 * Which of the two combos before a special he's on (1 or 2; 0 = none yet). He does two
+	 * combos (two quick melees then a sweep), then a special; Obliteration starts the two over.
+	 */
+	private int comboCount;
+	private boolean afterSweep = true;
+	/**
+	 * His specials alternate: the prayer turn-off, then Untether or Insolence, then the prayer
+	 * turn-off again, and so on, starting with the prayer turn-off. Obliteration doesn't count.
+	 */
+	private boolean prayerNext = true;
 
 	/** The current attack: when it started and how long it lasts (null style = no counter). */
 	private AttackStyle attackStyle;
@@ -181,6 +192,12 @@ public class FinalBoss extends Encounter
 	protected void reset()
 	{
 		super.reset();
+		lastChargeTick = -100;
+		tendrilSides.clear();
+		tendrilStarts.clear();
+		tendrilChargeTick = -100;
+		lastShotTick = -10;
+		countedShots.clear();
 		attackStyle = null;
 		clearUnleash();
 		obliterationEndTick = -1;
@@ -192,6 +209,9 @@ public class FinalBoss extends Encounter
 		deflectStartsShowing.clear();
 		sweepCount = 0;
 		sweepShownUntil = -1;
+		comboCount = 0;
+		afterSweep = true;
+		prayerNext = true;
 	}
 
 	/** The "safe portal" graphic the game puts where the orange portals' lines cross. */
@@ -322,6 +342,142 @@ public class FinalBoss extends Encounter
 		}
 		deflectStartsShowing.clear();
 		deflectStartsShowing.addAll(showing);
+	}
+
+	/**
+	 * Phase 1: one cast animation fires a volley of water (magic) and fire (ranged) shots, and
+	 * the only difference is the effect on Ocellus about a tick before each shot leaves him:
+	 * 4228 water, 4231 fire. Each one starts a 5-tick counter in that style's color.
+	 */
+	private static final int PHASE1_SHOT_TICKS = 5;
+	/** Shot effects already counted (id and start cycle), so each one starts the counter once. */
+	private final Set<Long> countedShots = new java.util.HashSet<>();
+	private int lastShotTick = -10;
+
+	/**
+	 * Phase 1 center: after he teleports in he does 4 quick ground attacks (14809), each
+	 * spawning two tendrils. Their tiles stay marked until they go off (the graphics only flash).
+	 */
+	private int lastChargeTick = -100;
+	/**
+	 * Each quick attack spawns two tendrils (diagonal lines toward him) on two neighbouring
+	 * sides. They don't go off together: one flashes 4 ticks after spawning, the other 6. Going
+	 * clockwise (0, 90, 180, 270), the first is the one whose neighbour is the next side round.
+	 */
+	private static final int FIRST_TENDRIL_TICKS = 4;
+	private static final int SECOND_TENDRIL_TICKS = 6;
+	/** This attack's tendril tiles by side (0-3), and its outermost tile per side. */
+	private final Map<WorldPoint, Integer> tendrilSides = new HashMap<>();
+	private final Map<Integer, WorldPoint> tendrilStarts = new HashMap<>();
+	private int tendrilChargeTick = -100;
+
+	/** Ticks until this tendril tile goes off, by tile (only tiles still to go off). */
+	Map<WorldPoint, Integer> getTendrilTiles()
+	{
+		Map<WorldPoint, Integer> left = new HashMap<>();
+		int elapsed = client.getTickCount() - tendrilChargeTick;
+		for (Map.Entry<WorldPoint, Integer> e : tendrilSides.entrySet())
+		{
+			int ticks = tendrilTicks(e.getValue()) - elapsed;
+			if (ticks >= 0)
+			{
+				left.put(e.getKey(), ticks);
+			}
+		}
+		return left;
+	}
+
+	/** The outermost tile of each tendril still to go off, and its ticks left. */
+	Map<WorldPoint, Integer> getTendrilLabels()
+	{
+		Map<WorldPoint, Integer> labels = new HashMap<>();
+		int elapsed = client.getTickCount() - tendrilChargeTick;
+		for (Map.Entry<Integer, WorldPoint> e : tendrilStarts.entrySet())
+		{
+			int ticks = tendrilTicks(e.getKey()) - elapsed;
+			if (ticks > 0)
+			{
+				labels.put(e.getValue(), ticks);
+			}
+		}
+		return labels;
+	}
+
+	private int tendrilTicks(int side)
+	{
+		boolean first = tendrilStarts.containsKey((side + 1) % 4) || tendrilSides.containsValue((side + 1) % 4);
+		return first ? FIRST_TENDRIL_TICKS : SECOND_TENDRIL_TICKS;
+	}
+
+	/** The side (0-3) a tendril graphic is on, or -1 if it isn't the start or body of one. */
+	private static int tendrilSide(int id)
+	{
+		if (id >= net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_02_START
+			&& id <= net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_02_START_270)
+		{
+			return id - net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_02_START;
+		}
+		int body = id - net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_02;
+		if (body >= 0 && body <= 6 && body % 2 == 0)
+		{
+			return body / 2;
+		}
+		return -1;
+	}
+
+
+	/**
+	 * Backup for a shot whose effect wasn't seen: start the counter from the projectile itself,
+	 * a tick shorter since it leaves him about a tick after the effect.
+	 */
+	private void checkPhase1Projectile(Projectile p)
+	{
+		int id = p.getId();
+		if ((id != net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_WATER_ATTACK01_PROJANIM
+			&& id != net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_FIRE_ATTACK01_PROJANIM)
+			|| client.getTickCount() - lastShotTick <= 2)
+		{
+			return;
+		}
+		lastShotTick = client.getTickCount();
+		attackStyle = id == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_WATER_ATTACK01_PROJANIM
+			? AttackStyle.MAGIC : AttackStyle.RANGED;
+		attackStartTick = -1;
+		attackLength = PHASE1_SHOT_TICKS - 1;
+		prayerHolding = false;
+		hybridPending = false;
+	}
+
+	private void checkPhase1Shot()
+	{
+		if (boss == null)
+		{
+			return;
+		}
+		for (net.runelite.api.ActorSpotAnim spotAnim : boss.getSpotAnims())
+		{
+			int id = spotAnim.getId();
+			if ((id == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_WATER_ATTACK01_SPOTANIM
+				|| id == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_FIRE_ATTACK01_SPOTANIM)
+				&& countedShots.add(((long) id << 32) | (spotAnim.getStartCycle() & 0xffffffffL)))
+			{
+				// Both effects can be on him at once (water still fading when fire starts), so
+				// remembering only the last one made them keep re-triggering each other
+				if (countedShots.size() > 64)
+				{
+					countedShots.clear();
+					countedShots.add(((long) id << 32) | (spotAnim.getStartCycle() & 0xffffffffL));
+				}
+				attackStyle = id == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_WATER_ATTACK01_SPOTANIM
+					? AttackStyle.MAGIC : AttackStyle.RANGED;
+				attackStartTick = -1;
+				attackLength = PHASE1_SHOT_TICKS;
+				lastShotTick = client.getTickCount();
+				prayerHolding = false;
+				hybridPending = false;
+				return;
+			}
+		}
 	}
 
 	/** Colors the hybrid attack's counter from the effect on Ocellus. */
@@ -514,6 +670,18 @@ public class FinalBoss extends Encounter
 	}
 
 	/** Basic attacks since the last sweep (1, 2, then 3 on the sweep), or 0 when hidden. */
+	/** Whether his next special is the prayer turn-off (otherwise Untether or Insolence). */
+	boolean isPrayerNext()
+	{
+		return prayerNext;
+	}
+
+	/** Which combo of the two before his next special (0 = none). */
+	int getComboCount()
+	{
+		return comboCount;
+	}
+
 	int getSweepCount()
 	{
 		if (sweepShownUntil >= 0 && client.getTickCount() >= sweepShownUntil)
@@ -918,6 +1086,11 @@ public class FinalBoss extends Encounter
 		int animation = event.getActor().getAnimation();
 		debug("anim " + animation);
 
+		if (animation == AnimationID.NPC_OCELLUS_PHASE1_CHARGE)
+		{
+			lastChargeTick = client.getTickCount();
+		}
+
 		if (animation == AnimationID.NPC_OCELLUS_PHASE3_UNLEASH_OUT || animation == AnimationID.NPC_OCELLUS_PHASE3_UNLEASH_OUT_90F)
 		{
 			// He's landed
@@ -952,11 +1125,21 @@ public class FinalBoss extends Encounter
 			case AnimationID.NPC_OCELLUS_PHASE3_BASIC_PROJECTILE_NOLOOP:
 				sweepCount = sweepCount >= 3 ? 1 : sweepCount + 1;
 				sweepShownUntil = -1;
+				if (afterSweep)
+				{
+					comboCount++;
+					afterSweep = false;
+				}
 				break;
 			case AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH:
 				// The sweep: show 3 for its 5 ticks, then go away
 				sweepCount = 3;
 				sweepShownUntil = client.getTickCount() + 5;
+				if (afterSweep)
+				{
+					comboCount++;
+				}
+				afterSweep = true;
 				break;
 			case AnimationID.NPC_OCELLUS_PHASE3_MELEE_SUPERIOR_SLASH:
 			case AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN:
@@ -965,6 +1148,16 @@ public class FinalBoss extends Encounter
 				// A special breaks the rhythm; start again from the next basic attack
 				sweepCount = 0;
 				sweepShownUntil = -1;
+				comboCount = 0;
+				afterSweep = true;
+				if (animation == AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN)
+				{
+					prayerNext = false;
+				}
+				else if (animation != AnimationID.NPC_OCELLUS_QUADRANT_DESTROY_IN)
+				{
+					prayerNext = true;
+				}
 				break;
 			default:
 				break;
@@ -999,6 +1192,7 @@ public class FinalBoss extends Encounter
 			checkDeflect();
 			checkVoidChain();
 		}
+		checkPhase1Shot();
 
 		if (attackStyle != null && attackStartTick < 0)
 		{
@@ -1057,6 +1251,24 @@ public class FinalBoss extends Encounter
 			}
 		}
 
+		int side = tendrilSide(id);
+		if (side >= 0 && tick - lastChargeTick <= 1)
+		{
+			if (tendrilChargeTick != lastChargeTick)
+			{
+				// A new attack: forget the last one's tendrils
+				tendrilChargeTick = lastChargeTick;
+				tendrilSides.clear();
+				tendrilStarts.clear();
+			}
+			WorldPoint wp = WorldPoint.fromLocal(client, event.getGraphicsObject().getLocation());
+			tendrilSides.put(wp, side);
+			if (id <= net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_02_START_270)
+			{
+				tendrilStarts.put(side, wp);
+			}
+		}
+
 		if (isActive())
 		{
 			debug("gfx " + event.getGraphicsObject().getId() + " at " + tile(WorldPoint.fromLocal(client, event.getGraphicsObject().getLocation())));
@@ -1069,6 +1281,7 @@ public class FinalBoss extends Encounter
 		Projectile p = event.getProjectile();
 		if (isActive() && loggedProjectiles.add(p))
 		{
+			checkPhase1Projectile(p);
 			debug("projectile " + p.getId() + " from " + tile(p.getSourcePoint())
 				+ (p.getSourceActor() != null ? " (" + p.getSourceActor().getName() + ")" : "")
 				+ " to " + (p.getTargetActor() != null ? p.getTargetActor().getName() : tile(p.getTargetPoint()))

@@ -92,6 +92,26 @@ public class FinalBossOverlay extends EncounterOverlay
 				renderPoly(graphics, footprint(o), danger, dangerFill, config.borderWidth());
 			}
 
+			// Phase 1 center tendrils: marked from when they spawn until they go off (one 4 ticks
+			// after spawning, the other 6), with the ticks left on each one's inner end (nearest him)
+			for (WorldPoint tile : encounter.getTendrilTiles().keySet())
+			{
+				LocalPoint lp = LocalPoint.fromWorld(wv, tile);
+				if (lp != null)
+				{
+					renderPoly(graphics, Perspective.getCanvasTilePoly(client, lp), danger, dangerFill, config.borderWidth());
+				}
+			}
+			for (java.util.Map.Entry<WorldPoint, Integer> label : encounter.getTendrilLabels().entrySet())
+			{
+				LocalPoint lp = LocalPoint.fromWorld(wv, label.getKey());
+				if (lp != null)
+				{
+					String text = Integer.toString(label.getValue());
+					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, FinalBoss.SPECIAL_COLOR);
+				}
+			}
+
 			java.util.Set<String> warnings = new java.util.HashSet<>();
 			for (GraphicsObject g : wv.getGraphicsObjects())
 			{
@@ -161,8 +181,20 @@ public class FinalBossOverlay extends EncounterOverlay
 		int sweep = encounter.getSweepCount();
 		if (config.ocellusSweepCounter() && ocellus != null && sweep > 0)
 		{
-			// Stacked directly under the tick counter (like Theatre), in a smaller font
-			renderStackedText(graphics, ocellus, Integer.toString(sweep), sweep >= 3 ? FinalBoss.SPECIAL_COLOR : FinalBoss.MELEE_COLOR, 20f);
+			// Stacked directly under the tick counter (like Theatre): basic attack : combo, e.g. "2:1"
+			// is the second attack of the first combo. After the second combo's sweep comes a special:
+			// the combo number is blue when that's the prayer turn-off, orange for Untether/Insolence.
+			Color sweepColor = FinalBoss.MELEE_COLOR;
+			int combo = encounter.getComboCount();
+			if (combo > 0)
+			{
+				renderStackedPair(graphics, ocellus, Integer.toString(sweep), sweepColor, ":" + combo,
+					encounter.isPrayerNext() ? FinalBoss.PRAYER_COLOR : FinalBoss.SPECIAL_COLOR, 20f);
+			}
+			else
+			{
+				renderStackedText(graphics, ocellus, Integer.toString(sweep), sweepColor, 20f);
+			}
 		}
 
 		int deflect = encounter.getDeflectTicks();
@@ -344,6 +376,28 @@ public class FinalBossOverlay extends EncounterOverlay
 	}
 
 	/** The true tile of the player the vine has trapped, or the vine's own tile if no one's on it. */
+	/** Like renderStackedText, but two pieces side by side in their own colors. */
+	private void renderStackedPair(Graphics2D graphics, NPC actor, String first, Color firstColor,
+		String second, Color secondColor, float size)
+	{
+		String text = first + second;
+		net.runelite.api.Point anchor = actor.getCanvasTextLocation(graphics, text, config.textZ());
+		if (anchor == null)
+		{
+			return;
+		}
+		java.awt.Font mainFont = graphics.getFont();
+		int mainWidth = graphics.getFontMetrics().stringWidth(text);
+		int mainHeight = graphics.getFontMetrics().getHeight();
+		graphics.setFont(mainFont.deriveFont(size));
+		int smallWidth = graphics.getFontMetrics().stringWidth(text);
+		int x = anchor.getX() + (mainWidth - smallWidth) / 2;
+		int y = anchor.getY() + mainHeight;
+		renderText(graphics, new net.runelite.api.Point(x, y), first, firstColor);
+		renderText(graphics, new net.runelite.api.Point(x + graphics.getFontMetrics().stringWidth(first), y), second, secondColor);
+		graphics.setFont(mainFont);
+	}
+
 	/** Void chain: the ticks until the next explosion, over your character (when you're warned). */
 	private void renderVoidChain(Graphics2D graphics)
 	{

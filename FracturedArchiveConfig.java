@@ -445,7 +445,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "ocellusSweepCounter",
 		name = "Sweep counter",
-		description = "Below the tick counter, count Ocellus's basic attacks in phase 3: 1, 2, then 3 on the sweep, then hide",
+		description = "Below the tick counter in phase 3: basic attack (1, 2, then 3 on the sweep) : which of the two combos before his special",
 		position = 4,
 		section = finalbossSection
 	)
