@@ -22,8 +22,6 @@ import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
-import net.runelite.api.events.GameObjectSpawned;
-import net.runelite.api.events.GroundObjectSpawned;
 import net.runelite.api.events.GraphicsObjectCreated;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
@@ -86,27 +84,27 @@ public class Bork extends Encounter
 		AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK_CYCLE_AND_OUT01);
 	private static final int STOMP_GAP = 3;
 	private static final int STOMP_COUNT = 4;
-	/** The tick the next stomp lands (-1 = none coming), and how many are still to come. */
-	private int nextStompTick = -1;
-	private int stompsLeft;
+	/** The tick Bork started winding up the stomps (-1 = none coming). */
+	private int stompStartTick = -1;
 
 	/** Ticks until the next stomp lands (0 = none coming). */
 	int getStompTicks()
 	{
-		if (nextStompTick < 0)
+		if (stompStartTick < 0)
 		{
 			return 0;
 		}
-		// Worked out from the tick number straight away, without waiting for the game tick event
-		// (which comes at the end of the tick): otherwise each stomp tick shows nothing until then
-		int remaining = nextStompTick - client.getTickCount();
-		int left = stompsLeft;
-		while (remaining <= 0 && left > 1)
+		// Worked out from the tick number straight away: the stomps land 3, 6, 9 and 12 ticks
+		// after the wind-up, so the count is the ticks until the next of those
+		int elapsed = client.getTickCount() - stompStartTick;
+		for (int k = 1; k <= STOMP_COUNT; k++)
 		{
-			remaining += STOMP_GAP;
-			left--;
+			if (STOMP_GAP * k > elapsed)
+			{
+				return STOMP_GAP * k - elapsed;
+			}
 		}
-		return Math.max(0, remaining);
+		return 0;
 	}
 
 	/**
@@ -298,11 +296,6 @@ public class Bork extends Encounter
 	 */
 	private final Map<NPC, Player> smorkTargets = new HashMap<>();
 
-	// Fight logging, to work out the stomp after the stun
-	private final Set<Projectile> loggedProjectiles = Collections.newSetFromMap(new java.util.WeakHashMap<>());
-	private final Set<Long> loggedSpotAnims = new HashSet<>();
-	private WorldPoint lastBorkTile;
-
 	@Inject
 	private BorkOverlay overlay;
 
@@ -336,12 +329,9 @@ public class Bork extends Encounter
 		fires.clear();
 		clearStun();
 		calledTarget = null;
-		lastBorkTile = null;
 		stompSafeTiles.clear();
 		stompSafeUntil = -1;
-		nextStompTick = -1;
-		stompsLeft = 0;
-		loggedSpotAnims.clear();
+		stompStartTick = -1;
 	}
 
 	NPC getStunnedBork()
@@ -414,24 +404,24 @@ public class Bork extends Encounter
 
 		if (npc.getId() == NpcID.TFA_BORK)
 		{
-			debug("bork anim " + animation + " at " + tile(npc) + " facing " + npc.getOrientation()
-				+ " interacting " + name(npc.getInteracting()) + (stunTicks > 0 ? " (stun " + stunTicks + " left)" : ""));
-			if (STUN_ANIMATIONS.contains(animation) || ATTACK_ANIMATIONS.contains(animation))
+			// Stomp logging (to keep refining the safe spot): Bork's tile and the Smorks' at each stomp
+			if (STOMP_ANIMATIONS.contains(animation) || animation == AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK_IN01
+				|| animation == AnimationID.NPC_BORK_IDLE_TO_ENRAGED_STOMP_ATTACK_IN01)
 			{
-				logPlayers();
+				debug("bork anim " + animation + " at " + tile(npc) + " facing " + npc.getOrientation());
+				logSmorks();
 			}
 			if (STOMP_ANIMATIONS.contains(animation))
 			{
 				// A stomp lands next tick: 14550 is the first of the four, 14551 the third
-				nextStompTick = client.getTickCount() + 1;
-				stompsLeft = animation == AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK01 ? STOMP_COUNT : STOMP_COUNT - 2;
+				// 14550 comes 2 ticks after the wind-up, 14551 8 ticks after
+				stompStartTick = client.getTickCount() - (animation == AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK01 ? 2 : 8);
 				stompSafeUntil = client.getTickCount() + 12;
 			}
 			else if (animation == AnimationID.NPC_BORK_ENRAGED_STOMP_ATTACK_IN01
 				|| animation == AnimationID.NPC_BORK_IDLE_TO_ENRAGED_STOMP_ATTACK_IN01)
 			{
-				nextStompTick = client.getTickCount() + STOMP_GAP;
-				stompsLeft = STOMP_COUNT;
+				stompStartTick = client.getTickCount();
 				stompSafeUntil = client.getTickCount() + 14;
 			}
 			if (STUN_ANIMATIONS.contains(animation))
@@ -471,7 +461,6 @@ public class Bork extends Encounter
 		Actor actor = event.getActor();
 		if (actor instanceof NPC && ((NPC) actor).getId() == NpcID.TFA_BORK)
 		{
-			debug("bork says \"" + event.getOverheadText() + "\"");
 			checkCalledTarget(event.getOverheadText());
 		}
 	}
@@ -539,13 +528,6 @@ public class Bork extends Encounter
 	{
 		Projectile projectile = event.getProjectile();
 		int id = projectile.getId();
-		if (isActive() && loggedProjectiles.add(projectile))
-		{
-			debug("projectile " + id + " from " + name(projectile.getSourceActor()) + " to "
-				+ (projectile.getTargetActor() != null ? name(projectile.getTargetActor())
-				: projectile.getTargetPoint() != null ? projectile.getTargetPoint().getX() + "," + projectile.getTargetPoint().getY() : "?")
-				+ ", " + (projectile.getRemainingCycles() + 29) / 30 + " ticks");
-		}
 
 		if (id == SMORK_FIRE_BOMB)
 		{
@@ -581,8 +563,9 @@ public class Bork extends Encounter
 	public void onGraphicsObjectCreated(GraphicsObjectCreated event)
 	{
 		GraphicsObject g = event.getGraphicsObject();
-		if (isActive() && g.getId() != SMORK_FIRE)
+		if (isActive() && g.getId() == STOMP_GRAPHIC)
 		{
+			// The stomp's hit tiles
 			WorldPoint wp = WorldPoint.fromLocal(client, g.getLocation());
 			debug("gfx " + g.getId() + " at " + wp.getX() + "," + wp.getY());
 		}
@@ -593,47 +576,9 @@ public class Bork extends Encounter
 	}
 
 	@Override
-	public void onGameObjectSpawned(GameObjectSpawned event)
-	{
-		if (isActive())
-		{
-			WorldPoint wp = event.getGameObject().getWorldLocation();
-			debug("object " + event.getGameObject().getId() + " at " + wp.getX() + "," + wp.getY());
-		}
-	}
-
-	@Override
-	public void onGroundObjectSpawned(GroundObjectSpawned event)
-	{
-		if (isActive())
-		{
-			WorldPoint wp = event.getGroundObject().getWorldLocation();
-			debug("ground object " + event.getGroundObject().getId() + " at " + wp.getX() + "," + wp.getY());
-		}
-	}
-
-	@Override
 	public void onGameTick(GameTick event)
 	{
 		updateStompSafeTiles();
-
-		// Where Bork moves to, and his spot animations (the stomp may show on him first)
-		if (boss != null)
-		{
-			WorldPoint at = boss.getWorldLocation();
-			if (!at.equals(lastBorkTile))
-			{
-				debug("bork moved to " + tile(boss) + " facing " + boss.getOrientation());
-				lastBorkTile = at;
-			}
-			for (net.runelite.api.ActorSpotAnim spotAnim : boss.getSpotAnims())
-			{
-				if (loggedSpotAnims.add(spotAnim.getId() * 100000L + client.getTickCount() / 4))
-				{
-					debug("bork spotanim " + spotAnim.getId());
-				}
-			}
-		}
 
 		// Bombs that have landed, and fire that has burnt out
 		fireBombs.removeIf(p -> p.getRemainingCycles() <= 0);
@@ -654,17 +599,10 @@ public class Bork extends Encounter
 		}
 		smorkTargets.keySet().removeIf(NPC::isDead);
 
-		if (nextStompTick >= 0 && client.getTickCount() >= nextStompTick)
+		if (stompStartTick >= 0 && client.getTickCount() - stompStartTick >= STOMP_GAP * STOMP_COUNT)
 		{
-			// That one landed; on to the next, until all four are done
-			if (--stompsLeft > 0)
-			{
-				nextStompTick += STOMP_GAP;
-			}
-			else
-			{
-				nextStompTick = -1;
-			}
+			// All four have landed
+			stompStartTick = -1;
 		}
 
 		if (stunTicks > 0 && --stunTicks == 0)
@@ -699,21 +637,24 @@ public class Bork extends Encounter
 		return best;
 	}
 
-	/** Every player's tile, to see where the stomp goes compared to the team. */
-	private void logPlayers()
+	/** The stomp's hit-tile graphic. */
+	private static final int STOMP_GRAPHIC = 4395;
+
+	/** Each Smork's tile, in the same form the stomp analysis reads. */
+	private void logSmorks()
 	{
 		WorldView wv = client.getTopLevelWorldView();
 		if (wv == null)
 		{
 			return;
 		}
-		StringBuilder sb = new StringBuilder("players:");
-		for (Player player : wv.players())
+		for (NPC npc : wv.npcs())
 		{
-			WorldPoint wp = player.getWorldLocation();
-			sb.append(' ').append(player.getName()).append('@').append(wp.getX()).append(',').append(wp.getY());
+			if (npc.getId() == NpcID.TFA_SMORK)
+			{
+				debug("smork from " + name(npc));
+			}
 		}
-		debug(sb.toString());
 	}
 
 	private static String tile(Actor actor)

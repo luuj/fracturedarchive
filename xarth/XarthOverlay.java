@@ -14,8 +14,8 @@ import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
 @Singleton
 public class XarthOverlay extends EncounterOverlay
 {
-	private static final Color FIREBALL_BORDER = new Color(255, 120, 0, 220);
-	private static final Color FIREBALL_FILL = new Color(255, 120, 0, 50);
+	private static final Color FIREBALL_BORDER = new Color(255, 115, 0, 220);
+	private static final Color FIREBALL_FILL = new Color(255, 115, 0, 50);
 
 	@Inject
 	private Xarth encounter;

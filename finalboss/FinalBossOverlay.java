@@ -60,7 +60,7 @@ public class FinalBossOverlay extends EncounterOverlay
 
 	/** His phase 1 water and fire projectiles. */
 	private static final Color WATER_COLOR = Color.CYAN;
-	private static final Color FIRE_COLOR = new Color(255, 200, 0);
+	private static final Color FIRE_COLOR = Color.GREEN;
 
 	/** Void bomb warnings and when each was first seen (they land 2 ticks later). */
 	private static final int BOMB_WARNING_TICKS = 2;
@@ -162,14 +162,14 @@ public class FinalBossOverlay extends EncounterOverlay
 		if (config.ocellusSweepCounter() && ocellus != null && sweep > 0)
 		{
 			// Stacked directly under the tick counter (like Theatre), in a smaller font
-			renderStackedText(graphics, ocellus, Integer.toString(sweep), sweep >= 3 ? FinalBoss.SPECIAL_COLOR : FinalBoss.MELEE_COLOR, 14f);
+			renderStackedText(graphics, ocellus, Integer.toString(sweep), sweep >= 3 ? FinalBoss.SPECIAL_COLOR : FinalBoss.MELEE_COLOR, 20f);
 		}
 
 		int deflect = encounter.getDeflectTicks();
 		if (config.ocellusDeflectCounter() && ocellus != null && deflect > 0)
 		{
 			// Small, under the attack counter (like the sweep count): green = ranged deflect, red = melee
-			renderStackedText(graphics, ocellus, Integer.toString(deflect), encounter.getDeflectColor(), 14f);
+			renderStackedText(graphics, ocellus, Integer.toString(deflect), encounter.getDeflectColor(), 20f);
 		}
 
 		int obliteration = encounter.getObliterationTicks();
@@ -362,7 +362,7 @@ public class FinalBossOverlay extends EncounterOverlay
 		if (p != null)
 		{
 			// A thick black outline: the "2" shows on the tick each teal explosion goes off right
-			// beside you, and plain teal text disappears into it
+			// beside you, and plain text disappears into it
 			int x = p.getX();
 			int y = p.getY() + graphics.getFontMetrics().getHeight();
 			graphics.setColor(Color.BLACK);

@@ -21,14 +21,14 @@ public class BorkOverlay extends EncounterOverlay
 	private static final int BOMB_WARNING_SHOTS = 5;
 
 	/** Colors (the colors you had saved). */
-	private static final Color STUN_COLOR = Color.CYAN;
+	private static final Color STUN_COLOR = new Color(170, 0, 255);
 	private static final Color STOMP_COLOR = Color.RED;
 	private static final Color STOMP_SAFE_BORDER = new Color(0, 255, 0, 150);
 	private static final Color STOMP_SAFE_FILL = new Color(0, 255, 0, 40);
 	private static final Color MAGIC_COLOR = Color.CYAN;
 	private static final Color RANGED_COLOR = Color.GREEN;
-	private static final Color FIRE_BORDER = new Color(255, 100, 0, 200);
-	private static final Color FIRE_FILL = new Color(255, 100, 0, 50);
+	private static final Color FIRE_BORDER = new Color(255, 115, 0, 200);
+	private static final Color FIRE_FILL = new Color(255, 115, 0, 50);
 
 	@Inject
 	private Bork encounter;

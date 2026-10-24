@@ -40,11 +40,11 @@ public class EzekielOverlay extends EncounterOverlay
 		SpotanimID.VFX_EZEKIEL_STAR_EXPLOSION_MARKER01);
 
 	/** Colors (the colors you had saved). */
-	private static final Color SWORD_BORDER = new Color(255, 200, 0, 200);
-	private static final Color SWORD_FILL = new Color(255, 200, 0, 15);
-	private static final Color STAR_BORDER = new Color(255, 60, 60, 220);
-	private static final Color STAR_FILL = new Color(255, 60, 60, 50);
-	private static final Color DODGE_COLOR = new Color(0, 255, 0, 79);
+	private static final Color SWORD_BORDER = new Color(255, 115, 0, 200);
+	private static final Color SWORD_FILL = new Color(255, 115, 0, 15);
+	private static final Color STAR_BORDER = new Color(255, 115, 0, 220);
+	private static final Color STAR_FILL = new Color(255, 115, 0, 50);
+	private static final Color DODGE_COLOR = new Color(255, 255, 255, 180);
 
 	@Inject
 	private Ezekiel encounter;
@@ -93,7 +93,8 @@ public class EzekielOverlay extends EncounterOverlay
 			Integer step = order.get(sword);
 			if (config.ezekielSwordTimer() && step != null)
 			{
-				renderStackedText(graphics, sword, Integer.toString(step), Color.WHITE, 18f);
+				Color c = step == 1 ? Color.GREEN : step == 2 ? Color.YELLOW : Color.RED;
+				renderStackedText(graphics, sword, Integer.toString(step), c, 18f);
 			}
 		}
 
@@ -228,7 +229,7 @@ public class EzekielOverlay extends EncounterOverlay
 		int toLastRow = half + size;
 		LocalPoint rowMiddle = center.plus(dx * toLastRow * tile, dy * toLastRow * tile);
 		Color safe = DODGE_COLOR;
-		Color safeFill = new Color(safe.getRed(), safe.getGreen(), safe.getBlue(), 70);
+		Color safeFill = new Color(safe.getRed(), safe.getGreen(), safe.getBlue(), 110);
 		java.util.Map<net.runelite.api.coords.WorldPoint, Integer> order = encounter.getStrikeOrder();
 		for (int i = -half; i <= size - 1 - half; i++)
 		{
@@ -243,7 +244,8 @@ public class EzekielOverlay extends EncounterOverlay
 				java.awt.Font font = graphics.getFont();
 				graphics.setFont(font.deriveFont(18f));
 				String text = Integer.toString(step);
-				renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, Color.WHITE);
+				renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text,
+					step == 1 ? Color.GREEN : step == 2 ? Color.YELLOW : Color.RED);
 				graphics.setFont(font);
 			}
 		}

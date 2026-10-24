@@ -425,7 +425,7 @@ public interface FracturedArchiveConfig extends Config
 	)
 	default int xarthVolleyTicks()
 	{
-		return 6;
+		return 4;
 	}
 
 	// Final boss (Ocellus)
@@ -493,7 +493,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "ocellusVoidChain",
 		name = "Void chain",
-		description = "Phase 4: when you get the void chain warning, count down to each of its 6 explosions over your character (teal)",
+		description = "Phase 4: when you get the void chain warning, count down to each of its 6 explosions over your character (purple)",
 		position = 4,
 		section = finalbossSection
 	)

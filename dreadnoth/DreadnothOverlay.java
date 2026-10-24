@@ -25,8 +25,8 @@ public class DreadnothOverlay extends EncounterOverlay
 	private static final Color SPLATTER_BORDER = new Color(244, 23, 165);
 	private static final Color SPLATTER_FILL = new Color(180, 0, 0, 0);
 	private static final Color INCOMING_COLOR = new Color(31, 236, 101);
-	private static final Color JUMP_COLOR = new Color(255, 200, 0);
-	private static final Color COOLDOWN_COLOR = Color.CYAN;
+	private static final Color JUMP_COLOR = Color.RED;
+	private static final Color COOLDOWN_COLOR = Color.YELLOW;
 	private static final Color RANGED_COLOR = Color.GREEN;
 
 	@Inject

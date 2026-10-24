@@ -4,7 +4,6 @@ import java.awt.Color;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import lombok.extern.slf4j.Slf4j;
 import lombok.Getter;
 import net.runelite.api.NPC;
 import net.runelite.api.events.AnimationChanged;
@@ -18,7 +17,6 @@ import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
 /**
  * Xarth. Fourth encounter, paired with the Dagon'hai Trio. A Tormented Demon.
  */
-@Slf4j
 @Singleton
 public class Xarth extends Encounter
 {
@@ -190,9 +188,9 @@ public class Xarth extends Encounter
 		}
 	}
 
+	/** Logging is off (kept as a no-op so it's easy to turn back on). */
 	private void debug(String message)
 	{
-		log.info("[Xarth t{}] {}", client.getTickCount(), message);
 	}
 
 	private static String tile(net.runelite.api.coords.WorldPoint p)
@@ -220,7 +218,7 @@ public class Xarth extends Encounter
 			case AnimationID.XARTH_ATTACK_RANGED_01:
 				return Color.GREEN;
 			default:
-				return Color.YELLOW;
+				return new Color(255, 115, 0);
 		}
 	}
 }

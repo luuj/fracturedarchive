@@ -67,7 +67,7 @@ public class Ezekiel extends Encounter
 	/** Colors (the colors you had saved). */
 	static final java.awt.Color MELEE_COLOR = java.awt.Color.RED;
 	static final java.awt.Color MAGIC_COLOR = java.awt.Color.CYAN;
-	static final java.awt.Color SPECIAL_COLOR = java.awt.Color.YELLOW;
+	static final java.awt.Color SPECIAL_COLOR = new java.awt.Color(255, 115, 0);
 
 	/** Ticks between Ezekiel's attacks. */
 	private static final int ATTACK_SPEED = 5;

@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.GameObject;
 import net.runelite.api.GameState;
 import net.runelite.api.NPC;
@@ -36,7 +35,6 @@ import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
  * Final boss: Ocellus (TFA_OCELLUS_P1-P3 in the game data), in three phases.
  * Related: TFA_OCELLUS_P3_BOMBPORTAL_BASIC/HEAL/BUFF, TFA_OCELLUS_P3_VOID_VINE
  */
-@Slf4j
 @Singleton
 public class FinalBoss extends Encounter
 {
@@ -44,18 +42,18 @@ public class FinalBoss extends Encounter
 	static final Color MELEE_COLOR = Color.RED;
 	static final Color PROJECTILE_COLOR = Color.MAGENTA;
 	static final Color PRAYER_COLOR = new Color(80, 160, 255);
-	static final Color SPECIAL_COLOR = Color.YELLOW;
-	static final Color MAGIC_COLOR = PRAYER_COLOR;
+	static final Color SPECIAL_COLOR = new Color(255, 115, 0);
+	static final Color MAGIC_COLOR = Color.CYAN;
 	static final Color RANGED_COLOR = Color.GREEN;
 	static final Color DANGER_COLOR = new Color(255, 0, 0, 75);
 	static final Color ARTIFACT_COLOR = Color.WHITE;
-	static final Color PORTAL_CROSSING_COLOR = new Color(255, 200, 0);
-	static final Color NEXT_CROSSING_COLOR = new Color(160, 210, 255);
+	static final Color PORTAL_CROSSING_COLOR = Color.GREEN;
+	static final Color NEXT_CROSSING_COLOR = new Color(255, 255, 160);
 	static final Color SOUL_FRAGMENT_COLOR = Color.CYAN;
 	static final Color TRAPPED_COLOR = Color.GREEN;
-	static final Color AUGMENTER_COLOR = new Color(255, 200, 0);
+	static final Color AUGMENTER_COLOR = Color.BLUE;
 	static final Color RIFT_COLOR = Color.MAGENTA;
-	static final Color SIPHON_COLOR = Color.RED;
+	static final Color SIPHON_COLOR = Color.GREEN;
 
 	private static final Set<Integer> BOSS_IDS = Set.of(NpcID.TFA_OCELLUS_P1, NpcID.TFA_OCELLUS_P2, NpcID.TFA_OCELLUS_P3);
 	// TODO: map region ID isn't in the game data; read it in game (Developer Tools > Location) if needed.
@@ -359,7 +357,7 @@ public class FinalBoss extends Encounter
 	 * Phase 4 void chain: players get a telegraph (4340), then 3 ticks later explosions (4339)
 	 * land every 2 ticks, 6 in all, chasing them.
 	 */
-	static final Color VOID_CHAIN_COLOR = new Color(0, 200, 180);
+	static final Color VOID_CHAIN_COLOR = new Color(170, 0, 255);
 	private static final int VOID_CHAIN_TELEGRAPH = net.runelite.api.gameval.SpotanimID.VFX_VOID_CHAIN_PLAYER_TELEGRAPH;
 	private static final int VOID_CHAIN_EXPLOSION = net.runelite.api.gameval.SpotanimID.VFX_VOID_CHAIN_EXPLOSION;
 	private static final int VOID_CHAIN_FIRST_HIT = 3;
@@ -1001,11 +999,6 @@ public class FinalBoss extends Encounter
 			checkDeflect();
 			checkVoidChain();
 		}
-		recordSceneryAnimations();
-		if (isActive())
-		{
-			recordSpotAnims();
-		}
 
 		if (attackStyle != null && attackStartTick < 0)
 		{
@@ -1179,10 +1172,9 @@ public class FinalBoss extends Encounter
 		}
 	}
 
+	/** Logging is off (kept as a no-op so it's easy to turn back on). */
 	private void debug(String message)
 	{
-		String line = "[Ocellus t" + client.getTickCount() + "] " + message;
-		log.info("{}", line);
 	}
 
 	private static String tile(WorldPoint p)

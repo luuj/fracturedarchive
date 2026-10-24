@@ -17,8 +17,8 @@ public class ArchiveGuardianOverlay extends EncounterOverlay
 	private static final int MUSHROOM_RADIUS = 1;
 
 	/** Mushroom area colors (the colors you had saved). */
-	private static final Color MUSHROOM_BORDER = new Color(255, 0, 0, 100);
-	private static final Color MUSHROOM_FILL = new Color(255, 0, 0, 17);
+	private static final Color MUSHROOM_BORDER = new Color(255, 0, 255, 100);
+	private static final Color MUSHROOM_FILL = new Color(255, 0, 255, 17);
 
 	@Inject
 	private ArchiveGuardian encounter;
