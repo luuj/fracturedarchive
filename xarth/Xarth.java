@@ -164,6 +164,45 @@ public class Xarth extends Encounter
 	private final Set<net.runelite.api.Projectile> fireballs = new java.util.HashSet<>();
 	private final Set<net.runelite.api.Projectile> logged = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
+	/**
+	 * Corpses walking to Xarth (not doused ones), with the ticks until each reaches him: they stand
+	 * still for 2 ticks after spawning, then walk a tile a tick, so it's the tiles left until it's
+	 * next to him plus whatever's left of that wait. Worked out live, so it holds still while a
+	 * corpse is held in place.
+	 */
+	private static final int CORPSE_WAIT_TICKS = 2;
+	private final java.util.Map<NPC, Integer> corpseSpawnTicks = new java.util.WeakHashMap<>();
+
+	java.util.Map<NPC, Integer> getCorpseTicks()
+	{
+		java.util.Map<NPC, Integer> corpses = new java.util.HashMap<>();
+		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+		if (boss == null || wv == null)
+		{
+			return corpses;
+		}
+		net.runelite.api.coords.WorldPoint sw = boss.getWorldLocation();
+		int size = boss.getComposition() != null ? boss.getComposition().getSize() : 1;
+		for (NPC npc : wv.npcs())
+		{
+			if (npc.getId() != net.runelite.api.gameval.NpcID.TFA_XARTH_CORPSE || npc.isDead())
+			{
+				continue;
+			}
+			net.runelite.api.coords.WorldPoint p = npc.getWorldLocation();
+			int dx = Math.max(0, Math.max(sw.getX() - p.getX(), p.getX() - (sw.getX() + size - 1)));
+			int dy = Math.max(0, Math.max(sw.getY() - p.getY(), p.getY() - (sw.getY() + size - 1)));
+			Integer spawned = corpseSpawnTicks.get(npc);
+			int wait = spawned == null ? 0 : Math.max(0, CORPSE_WAIT_TICKS - (client.getTickCount() - spawned));
+			int ticks = Math.max(dx, dy) - 1 + wait;
+			if (ticks > 0)
+			{
+				corpses.put(npc, ticks);
+			}
+		}
+		return corpses;
+	}
+
 	Set<net.runelite.api.Projectile> getFireballs()
 	{
 		return java.util.Collections.unmodifiableSet(fireballs);
@@ -210,6 +249,10 @@ public class Xarth extends Encounter
 	{
 		super.onNpcSpawned(event);
 		NPC npc = event.getNpc();
+		if (npc.getId() == net.runelite.api.gameval.NpcID.TFA_XARTH_CORPSE)
+		{
+			corpseSpawnTicks.put(npc, client.getTickCount());
+		}
 		if (isActive())
 		{
 			debug("npc " + npc.getId() + " (" + npc.getName() + ") at " + tile(npc.getWorldLocation()));

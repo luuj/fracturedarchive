@@ -65,10 +65,93 @@ public class Necromancer extends Encounter
 		return overlay;
 	}
 
+	/** Her slow magic projectile (lands 6 ticks after it's thrown) and the fast ranged one. */
+	static final int MAGIC_PROJECTILE = 4213;
+	static final int RANGED_PROJECTILE = 4214;
+	/** The cough (smoke cloud) projectile. */
+	static final int COUGH_PROJECTILE = 4218;
+	/**
+	 * The cough: whoever it hits coughs every 8 ticks (the first 3 ticks after it's thrown), and it
+	 * spreads to whoever's next to them. Each one keeps coughing until a cough hits them for 5, so
+	 * how long it lasts varies. The timer over each is the ticks until their next cough.
+	 */
+	static final int COUGH_GAP = 8;
+	private static final int FIRST_COUGH_TICKS = 3;
+	private static final int COUGH_END_DAMAGE = 5;
+	/** At most 4 coughs each (it can end sooner, on a cough that hits for 5). */
+	static final int MAX_COUGHS = 4;
+
+	private final Set<net.runelite.api.Projectile> magicProjectiles = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+	private final Set<net.runelite.api.Projectile> seen = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+	/** Everyone coughing and the tick of their last (or, for a fresh hit, an imagined) cough. */
+	private final java.util.Map<net.runelite.api.Actor, Integer> lastCough = new java.util.WeakHashMap<>();
+	/** The tick each one's cough ended, so the *Cough* on that same tick doesn't restart it. */
+	private final java.util.Map<net.runelite.api.Actor, Integer> coughEnded = new java.util.WeakHashMap<>();
+	/** How many times each has coughed so far. */
+	private final java.util.Map<net.runelite.api.Actor, Integer> coughCount = new java.util.WeakHashMap<>();
+
+	Set<net.runelite.api.Projectile> getMagicProjectiles()
+	{
+		magicProjectiles.removeIf(p -> p.getRemainingCycles() <= 0);
+		return magicProjectiles;
+	}
+
+	/** Everyone coughing: "ticks until their next cough:coughs left". */
+	java.util.Map<net.runelite.api.Actor, String> getCoughLabels()
+	{
+		java.util.Map<net.runelite.api.Actor, String> labels = new java.util.HashMap<>();
+		for (java.util.Map.Entry<net.runelite.api.Actor, Integer> e : getCoughTicks().entrySet())
+		{
+			int left = MAX_COUGHS - coughCount.getOrDefault(e.getKey(), 0);
+			labels.put(e.getKey(), e.getValue() + ":" + left);
+		}
+		return labels;
+	}
+
+	/** Everyone coughing, with the ticks until their next cough. */
+	java.util.Map<net.runelite.api.Actor, Integer> getCoughTicks()
+	{
+		int tick = client.getTickCount();
+		// Forget anyone who's missed a cough (gone, or it ended without us seeing the 5)
+		lastCough.values().removeIf(last -> tick - last > COUGH_GAP + 2);
+		java.util.Map<net.runelite.api.Actor, Integer> ticks = new java.util.HashMap<>();
+		for (java.util.Map.Entry<net.runelite.api.Actor, Integer> e : lastCough.entrySet())
+		{
+			// +1: each cough shows up at the very end of its tick, so the first number shown is 8
+			int next = COUGH_GAP + 1 - (tick - e.getValue());
+			if (next > 0)
+			{
+				ticks.put(e.getKey(), next);
+			}
+		}
+		return ticks;
+	}
+
+	/** The undead binders still standing. */
+	java.util.List<net.runelite.api.NPC> getBinders()
+	{
+		java.util.List<net.runelite.api.NPC> binders = new java.util.ArrayList<>();
+		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+		if (wv != null)
+		{
+			for (net.runelite.api.NPC npc : wv.npcs())
+			{
+				if (npc.getId() == NpcID.TFA_MOIA_MINION && !npc.isDead())
+				{
+					binders.add(npc);
+				}
+			}
+		}
+		return binders;
+	}
+
 	@Override
 	protected void reset()
 	{
 		super.reset();
+		// Moia vanishes for about 10 ticks when she enrages (at 33%), which resets the encounter:
+		// keep the coughs going through that (anyone who's stopped coughing drops off by itself)
+		magicProjectiles.clear();
 	}
 
 	@Override
@@ -76,6 +159,15 @@ public class Necromancer extends Encounter
 	{
 		super.unload();
 		logger.reset();
+		lastCough.clear();
+		coughEnded.clear();
+		coughCount.clear();
+	}
+
+	/** In the fight: Moia's up, or she's vanished mid-fight to enrage. */
+	boolean isFightActive()
+	{
+		return isActive() || logger.isActive();
 	}
 
 	@Override
@@ -114,6 +206,20 @@ public class Necromancer extends Encounter
 	@Override
 	public void onProjectileMoved(ProjectileMoved event)
 	{
+		net.runelite.api.Projectile p = event.getProjectile();
+		if (seen.add(p))
+		{
+			if (p.getId() == MAGIC_PROJECTILE)
+			{
+				magicProjectiles.add(p);
+			}
+			else if (p.getId() == COUGH_PROJECTILE && p.getTargetActor() != null)
+			{
+				// First cough 3 ticks after it's thrown
+				lastCough.put(p.getTargetActor(), client.getTickCount() + FIRST_COUGH_TICKS - COUGH_GAP);
+				coughCount.put(p.getTargetActor(), 0);
+			}
+		}
 		logger.onProjectileMoved(event);
 	}
 
@@ -150,6 +256,28 @@ public class Necromancer extends Encounter
 	@Override
 	public void onOverheadTextChanged(OverheadTextChanged event)
 	{
+		// Each cough (including anyone it's spread to, binders too)
+		if ("*Cough*".equals(event.getOverheadText()) && event.getActor() != null
+			&& !Integer.valueOf(client.getTickCount()).equals(coughEnded.get(event.getActor())))
+		{
+			net.runelite.api.Actor actor = event.getActor();
+			if (!lastCough.containsKey(actor))
+			{
+				coughCount.put(actor, 0);
+			}
+			int count = coughCount.merge(actor, 1, Integer::sum);
+			if (count >= MAX_COUGHS)
+			{
+				// That was the last one
+				lastCough.remove(actor);
+				coughCount.remove(actor);
+				coughEnded.put(actor, client.getTickCount());
+			}
+			else
+			{
+				lastCough.put(actor, client.getTickCount());
+			}
+		}
 		logger.onOverheadTextChanged(event);
 	}
 
@@ -168,6 +296,14 @@ public class Necromancer extends Encounter
 	@Override
 	public void onHitsplatApplied(net.runelite.api.events.HitsplatApplied event)
 	{
+		// A cough that hits for 5 is the last one
+		if (event.getHitsplat().getHitsplatType() == net.runelite.api.HitsplatID.POISON
+			&& event.getHitsplat().getAmount() == COUGH_END_DAMAGE && lastCough.containsKey(event.getActor()))
+		{
+			lastCough.remove(event.getActor());
+			coughCount.remove(event.getActor());
+			coughEnded.put(event.getActor(), client.getTickCount());
+		}
 		logger.onHitsplatApplied(event);
 	}
 }

@@ -46,6 +46,19 @@ public class XarthOverlay extends EncounterOverlay
 			}
 		}
 
+		if (config.xarthCorpseCountdown())
+		{
+			for (java.util.Map.Entry<NPC, Integer> corpse : encounter.getCorpseTicks().entrySet())
+			{
+				String text = Integer.toString(corpse.getValue());
+				net.runelite.api.Point point = corpse.getKey().getCanvasTextLocation(graphics, text, config.textZ());
+				if (point != null)
+				{
+					renderText(graphics, point, text, Color.CYAN);
+				}
+			}
+		}
+
 		NPC xarth = encounter.getBoss();
 		if (xarth == null)
 		{

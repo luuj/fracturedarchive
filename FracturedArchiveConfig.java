@@ -59,7 +59,7 @@ public interface FracturedArchiveConfig extends Config
 
 	@ConfigSection(
 		name = "Necromancer",
-		description = "Third encounter, paired with Dreadnoth. Name not yet revealed",
+		description = "Third encounter, paired with Dreadnoth: Moia",
 		position = 5,
 		closedByDefault = true
 	)
@@ -426,6 +426,56 @@ public interface FracturedArchiveConfig extends Config
 	default int xarthVolleyTicks()
 	{
 		return 4;
+	}
+
+	@ConfigItem(
+		keyName = "xarthCorpseCountdown",
+		name = "Corpse countdown",
+		description = "Over each corpse walking to Xarth, the ticks until it reaches him (cyan)",
+		position = 3,
+		section = xarthSection
+	)
+	default boolean xarthCorpseCountdown()
+	{
+		return true;
+	}
+
+	// Necromancer (Moia)
+
+	@ConfigItem(
+		keyName = "moiaMagicCounter",
+		name = "Magic projectile ticks",
+		description = "On Moia's slow magic projectile aimed at you, the ticks until it hits (cyan)",
+		position = 0,
+		section = necromancerSection
+	)
+	default boolean moiaMagicCounter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "moiaCough",
+		name = "Cough timer",
+		description = "Over everyone coughing (players and binders): ticks until their next cough : coughs left (purple)",
+		position = 1,
+		section = necromancerSection
+	)
+	default boolean moiaCough()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "moiaBinders",
+		name = "Undead binders",
+		description = "Highlight the 3x3 around each undead binder (red)",
+		position = 2,
+		section = necromancerSection
+	)
+	default boolean moiaBinders()
+	{
+		return true;
 	}
 
 	// Final boss (Ocellus)

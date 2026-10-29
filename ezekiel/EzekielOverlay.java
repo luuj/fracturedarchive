@@ -64,12 +64,19 @@ public class EzekielOverlay extends EncounterOverlay
 			return;
 		}
 
-		Map<NPC, Integer> order = swordOrder();
+		// Each sword keeps the order it's given, so the 2nd and 3rd keep theirs after the 1st goes
+		for (Map.Entry<NPC, Integer> e : swordOrder().entrySet())
+		{
+			fixedOrder.putIfAbsent(e.getKey(), e.getValue());
+		}
+		fixedOrder.keySet().retainAll(encounter.getSwords().keySet());
 		for (Map.Entry<NPC, Ezekiel.SwordTrack> entry : encounter.getSwords().entrySet())
 		{
 			NPC sword = entry.getKey();
 			Ezekiel.SwordTrack track = entry.getValue();
-			int ticks = encounter.ticksUntilLaunch(track);
+			Integer step = fixedOrder.get(sword);
+			// In a set of three on one side they go a tick apart: 15, 16, 17
+			int ticks = encounter.ticksUntilLaunch(track) + (step != null ? step - 1 : 0);
 			if (ticks <= 0)
 			{
 				// Already gone off
@@ -89,8 +96,7 @@ public class EzekielOverlay extends EncounterOverlay
 				renderText(graphics, point, text, showLane ? SWORD_BORDER : Color.WHITE);
 			}
 
-			// Which goes 1st, 2nd, 3rd in a set on one side, under the countdown (size 18)
-			Integer step = order.get(sword);
+			// Which goes 1st, 2nd, 3rd in a set on one side, under the countdown
 			if (config.ezekielSwordTimer() && step != null)
 			{
 				Color c = step == 1 ? Color.GREEN : step == 2 ? Color.YELLOW : Color.RED;
@@ -141,6 +147,8 @@ public class EzekielOverlay extends EncounterOverlay
 	 * west, the northern one first, then the middle, then the southern; flying north or south,
 	 * the western one first, then the middle, then the eastern.
 	 */
+	private final Map<NPC, Integer> fixedOrder = new java.util.HashMap<>();
+
 	private Map<NPC, Integer> swordOrder()
 	{
 		// Group by direction, then split where the drops are more than 2 ticks apart
