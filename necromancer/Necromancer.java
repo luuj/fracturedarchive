@@ -127,6 +127,42 @@ public class Necromancer extends Encounter
 		return ticks;
 	}
 
+	/**
+	 * Enrage (33%): she charges ("Useless corpses... Give me your strength!", then "Again!" for
+	 * each next one), and each charge lasts 2 ticks less than the one before: 41, 39, 37...
+	 */
+	private static final int FIRST_CHARGE_TICKS = 41;
+	/** Her teleport into the magic attack, and the cough throw. */
+	private static final int MAGIC_SPECIAL_ANIM = 14788;
+	private static final int COUGH_SPECIAL_ANIM = 14786;
+	private static final int CHARGE_STEP = 2;
+	private int chargeStartTick = -1;
+	private int chargeLength;
+	private int charges;
+
+	/**
+	 * Before the enrage her specials go magic, magic, cough, and repeat: count them to know which
+	 * is next. Hidden once she enrages.
+	 */
+	private int specials;
+	private boolean enraged;
+
+	/** Her next special: true for the cough, false for magic (null once she's enraged). */
+	Boolean isCoughNext()
+	{
+		return enraged ? null : specials % 3 == 2;
+	}
+
+	/** Ticks until her enrage charge finishes (0 = not charging). */
+	int getChargeTicks()
+	{
+		if (chargeStartTick < 0)
+		{
+			return 0;
+		}
+		return Math.max(0, chargeLength - (client.getTickCount() - chargeStartTick));
+	}
+
 	/** The undead binders still standing. */
 	java.util.List<net.runelite.api.NPC> getBinders()
 	{
@@ -162,6 +198,10 @@ public class Necromancer extends Encounter
 		lastCough.clear();
 		coughEnded.clear();
 		coughCount.clear();
+		chargeStartTick = -1;
+		charges = 0;
+		specials = 0;
+		enraged = false;
 	}
 
 	/** In the fight: Moia's up, or she's vanished mid-fight to enrage. */
@@ -200,6 +240,24 @@ public class Necromancer extends Encounter
 	@Override
 	public void onAnimationChanged(AnimationChanged event)
 	{
+		if (event.getActor() instanceof net.runelite.api.NPC
+			&& ((net.runelite.api.NPC) event.getActor()).getId() == NpcID.TFA_MOIA)
+		{
+			int anim = event.getActor().getAnimation();
+			if (anim == MAGIC_SPECIAL_ANIM || anim == COUGH_SPECIAL_ANIM)
+			{
+				// Keep in step even if one was missed: a cough is always the 3rd
+				specials = anim == COUGH_SPECIAL_ANIM ? 0 : specials + 1;
+			}
+		}
+		if (event.getActor() instanceof net.runelite.api.NPC
+			&& ((net.runelite.api.NPC) event.getActor()).getId() == NpcID.TFA_MOIA
+			&& event.getActor().getAnimation() == net.runelite.api.gameval.AnimationID.MOIA_CHANT01)
+		{
+			chargeLength = FIRST_CHARGE_TICKS - CHARGE_STEP * charges;
+			charges++;
+			chargeStartTick = client.getTickCount();
+		}
 		logger.onAnimationChanged(event);
 	}
 
@@ -256,6 +314,24 @@ public class Necromancer extends Encounter
 	@Override
 	public void onOverheadTextChanged(OverheadTextChanged event)
 	{
+		if (event.getActor() instanceof net.runelite.api.NPC
+			&& ((net.runelite.api.NPC) event.getActor()).getId() == NpcID.TFA_MOIA && event.getOverheadText() != null)
+		{
+			String said = event.getOverheadText();
+			if (said.startsWith("Cease this futile"))
+			{
+				// Enraging: the charges start from the first again, and no more specials
+				charges = 0;
+				chargeStartTick = -1;
+				enraged = true;
+			}
+			else if (said.startsWith("Hmph"))
+			{
+				// Dead
+				chargeStartTick = -1;
+			}
+		}
+
 		// Each cough (including anyone it's spread to, binders too)
 		if ("*Cough*".equals(event.getOverheadText()) && event.getActor() != null
 			&& !Integer.valueOf(client.getTickCount()).equals(coughEnded.get(event.getActor())))

@@ -55,6 +55,163 @@ public class DagonhaiTrio extends Encounter
 		logger = new FightLogger(client, "Dagonhai", LOG_IDS);
 	}
 
+	/** The three wizards (the elder and the two monks, shielded or not). */
+	static final Set<Integer> WIZARD_IDS = Set.of(NpcID.TFA_DAGONHAI_LEADER, NpcID.TFA_DAGONHAI_LEADER_UNSHIELDED,
+		NpcID.TFA_DAGONHAI_MINION_1, NpcID.TFA_DAGONHAI_MINION_1_UNSHIELDED, NpcID.TFA_DAGONHAI_MINION_2,
+		NpcID.TFA_DAGONHAI_MINION_2_UNSHIELDED);
+
+	enum Element
+	{
+		FIRE, WATER, AIR, EARTH
+	}
+
+	enum God
+	{
+		ZAMORAK, BANDOS, SARADOMIN
+	}
+
+	/**
+	 * What each wizard is doing and since when. They're told by what they yell; the highlight goes
+	 * when the wizard is stunned ("Argh!"), the tome is blocked ("Curse you!"), it says something
+	 * else, or when it would have finished: a channel completes 18 ticks after the yell, and a
+	 * tome is blocked 4 ticks after it (8 allowed, for one that isn't blocked).
+	 */
+	private static final int CHANNEL_TICKS = 18;
+	private static final int INCANTATION_TICKS = 8;
+	private final java.util.Map<net.runelite.api.NPC, Element> channels = new java.util.HashMap<>();
+	private final java.util.Map<net.runelite.api.NPC, God> incantations = new java.util.HashMap<>();
+	private final java.util.Map<net.runelite.api.NPC, Integer> startTicks = new java.util.HashMap<>();
+
+	java.util.Map<net.runelite.api.NPC, Element> getChannels()
+	{
+		expire();
+		return channels;
+	}
+
+	java.util.Map<net.runelite.api.NPC, God> getIncantations()
+	{
+		expire();
+		return incantations;
+	}
+
+	private void expire()
+	{
+		int tick = client.getTickCount();
+		startTicks.entrySet().removeIf(e ->
+		{
+			int limit = incantations.containsKey(e.getKey()) ? INCANTATION_TICKS : CHANNEL_TICKS;
+			if (tick - e.getValue() >= limit || e.getKey().isDead())
+			{
+				channels.remove(e.getKey());
+				incantations.remove(e.getKey());
+				return true;
+			}
+			return false;
+		});
+	}
+
+	/** The imp portals in the corners. */
+	java.util.List<net.runelite.api.NPC> getPortals()
+	{
+		java.util.List<net.runelite.api.NPC> portals = new java.util.ArrayList<>();
+		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+		if (wv != null)
+		{
+			for (net.runelite.api.NPC npc : wv.npcs())
+			{
+				if (npc.getId() == NpcID.TFA_DAGONHAI_RIFT && !npc.isDead())
+				{
+					portals.add(npc);
+				}
+			}
+		}
+		return portals;
+	}
+
+	/**
+	 * The elder's attacks: ranged (14593) or magic (14597) every 5 ticks, hitting 5 ticks after the
+	 * animation (thrown 2 ticks in, 3 ticks to land).
+	 */
+	private static final int ELDER_ATTACK_TICKS = 5;
+	private int elderAttackTick = -1;
+	private boolean elderMagic;
+
+	/** Ticks until the elder's attack lands (0 = none). */
+	int getElderTicks()
+	{
+		if (elderAttackTick < 0)
+		{
+			return 0;
+		}
+		return Math.max(0, ELDER_ATTACK_TICKS - (client.getTickCount() - elderAttackTick));
+	}
+
+	boolean isElderMagic()
+	{
+		return elderMagic;
+	}
+
+	/** In the fight: the elder's up, or the fight logger still sees the room's NPCs. */
+	boolean isFightActive()
+	{
+		return isActive() || logger.isActive();
+	}
+
+	private void handleYell(net.runelite.api.NPC npc, String text)
+	{
+		Element element = null;
+		God god = null;
+		String t = text.toLowerCase();
+		if (t.contains("feed the flames"))
+		{
+			element = Element.FIRE;
+		}
+		else if (t.contains("guide the flow"))
+		{
+			element = Element.WATER;
+		}
+		else if (t.contains("focus the winds"))
+		{
+			element = Element.AIR;
+		}
+		else if (t.contains("strengthen the bond"))
+		{
+			element = Element.EARTH;
+		}
+		else if (t.contains("zamorak fuels") || t.contains("zamorak empowers"))
+		{
+			god = God.ZAMORAK;
+		}
+		else if (t.contains("bandosian strength"))
+		{
+			god = God.BANDOS;
+		}
+		else if (t.contains("saradominist zeal"))
+		{
+			god = God.SARADOMIN;
+		}
+
+		if (element != null)
+		{
+			incantations.remove(npc);
+			channels.put(npc, element);
+			startTicks.put(npc, client.getTickCount());
+		}
+		else if (god != null)
+		{
+			channels.remove(npc);
+			incantations.put(npc, god);
+			startTicks.put(npc, client.getTickCount());
+		}
+		else if (t.contains("argh") || t.contains("curse you"))
+		{
+			// Stunned by the matching element, or the tome was blocked
+			channels.remove(npc);
+			incantations.remove(npc);
+			startTicks.remove(npc);
+		}
+	}
+
 	@Override
 	protected Set<Integer> bossIds()
 	{
@@ -78,6 +235,9 @@ public class DagonhaiTrio extends Encounter
 	{
 		super.unload();
 		logger.reset();
+		channels.clear();
+		incantations.clear();
+		startTicks.clear();
 	}
 
 	@Override
@@ -110,6 +270,17 @@ public class DagonhaiTrio extends Encounter
 	@Override
 	public void onAnimationChanged(AnimationChanged event)
 	{
+		if (event.getActor() instanceof net.runelite.api.NPC
+			&& ((net.runelite.api.NPC) event.getActor()).getId() == NpcID.TFA_DAGONHAI_LEADER)
+		{
+			int anim = event.getActor().getAnimation();
+			if (anim == net.runelite.api.gameval.AnimationID.NPC_DAGONHAI_ATTACK_RANGED_01
+				|| anim == net.runelite.api.gameval.AnimationID.NPC_DAGONHAI_ATTACK_MAGIC_01)
+			{
+				elderAttackTick = client.getTickCount();
+				elderMagic = anim == net.runelite.api.gameval.AnimationID.NPC_DAGONHAI_ATTACK_MAGIC_01;
+			}
+		}
 		logger.onAnimationChanged(event);
 	}
 
@@ -152,6 +323,11 @@ public class DagonhaiTrio extends Encounter
 	@Override
 	public void onOverheadTextChanged(OverheadTextChanged event)
 	{
+		if (event.getActor() instanceof net.runelite.api.NPC
+			&& WIZARD_IDS.contains(((net.runelite.api.NPC) event.getActor()).getId()) && event.getOverheadText() != null)
+		{
+			handleYell((net.runelite.api.NPC) event.getActor(), event.getOverheadText());
+		}
 		logger.onOverheadTextChanged(event);
 	}
 

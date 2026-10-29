@@ -440,6 +440,104 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
+	// Dagon'hai Trio
+
+	@ConfigItem(
+		keyName = "dagonhaiPortals",
+		name = "Imp portals",
+		description = "Highlight the imp portals in the corners (purple), and the tile next to all of them to close them at once (green)",
+		position = 0,
+		section = dagonhaitrioSection
+	)
+	default boolean dagonhaiPortals()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dagonhaiElements",
+		name = "Elemental channels",
+		description = "Highlight a wizard channelling an element, with its name: blue water, orange fire, white air, green earth",
+		position = 1,
+		section = dagonhaitrioSection
+	)
+	default boolean dagonhaiElements()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dagonhaiIncantations",
+		name = "Incantations",
+		description = "Highlight the wizard calling on a god, with which one: Zamorak, Bandos or Saradomin",
+		position = 2,
+		section = dagonhaitrioSection
+	)
+	default boolean dagonhaiIncantations()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dagonhaiShockwave",
+		name = "Bandos shockwave",
+		description = "The Bandos shockwave ring as it spreads: filled where it is now, outlined where it'll be next tick (brown)",
+		position = 3,
+		section = dagonhaitrioSection
+	)
+	default boolean dagonhaiShockwave()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dagonhaiLightning",
+		name = "Saradomin lightning",
+		description = "Saradomin's lightning strike tiles until they strike: yellow heals, blue hurts",
+		position = 4,
+		section = dagonhaitrioSection
+	)
+	default boolean dagonhaiLightning()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dagonhaiFlames",
+		name = "Zamorak flames",
+		description = "Zamorak's flame glyphs on the floor until they erupt (red)",
+		position = 5,
+		section = dagonhaitrioSection
+	)
+	default boolean dagonhaiFlames()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dagonhaiTomePath",
+		name = "Tome path",
+		description = "The path a god tome takes to the cauldron, where to stand to block it (in the god's color)",
+		position = 6,
+		section = dagonhaitrioSection
+	)
+	default boolean dagonhaiTomePath()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dagonhaiElderCounter",
+		name = "Elder attack counter",
+		description = "Over the elder, the ticks until his attack lands (cyan magic, green ranged)",
+		position = 7,
+		section = dagonhaitrioSection
+	)
+	default boolean dagonhaiElderCounter()
+	{
+		return true;
+	}
+
 	// Necromancer (Moia)
 
 	@ConfigItem(
@@ -474,6 +572,30 @@ public interface FracturedArchiveConfig extends Config
 		section = necromancerSection
 	)
 	default boolean moiaBinders()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "moiaEnrage",
+		name = "Enrage charge",
+		description = "Over Moia during her enrage, the ticks until each charge finishes (orange)",
+		position = 3,
+		section = necromancerSection
+	)
+	default boolean moiaEnrage()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "moiaNextSpecial",
+		name = "Next special",
+		description = "Under Moia, her next special before she enrages: Magic or Cough (they go magic, magic, cough)",
+		position = 4,
+		section = necromancerSection
+	)
+	default boolean moiaNextSpecial()
 	{
 		return true;
 	}

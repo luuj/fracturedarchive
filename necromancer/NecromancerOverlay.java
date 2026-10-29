@@ -20,6 +20,7 @@ public class NecromancerOverlay extends EncounterOverlay
 	private static final Color BINDER_BORDER = new Color(255, 0, 0, 150);
 	private static final Color BINDER_FILL = new Color(255, 0, 0, 25);
 	private static final Color COUGH_COLOR = new Color(170, 0, 255);
+	private static final Color ENRAGE_COLOR = new Color(255, 115, 0);
 
 	@Inject
 	private Necromancer encounter;
@@ -70,11 +71,32 @@ public class NecromancerOverlay extends EncounterOverlay
 			}
 		}
 
+		Boolean coughNext = encounter.isCoughNext();
+		NPC boss = encounter.getBoss();
+		if (config.moiaNextSpecial() && coughNext != null && boss != null)
+		{
+			// Her next special, under where her counters go (size 12): magic (cyan) or cough (purple)
+			renderStackedText(graphics, boss, coughNext ? "Cough" : "Magic", coughNext ? COUGH_COLOR : Color.CYAN, 12f);
+		}
+
+		int charge = encounter.getChargeTicks();
+		NPC moia = encounter.getBoss();
+		if (config.moiaEnrage() && charge > 0 && moia != null)
+		{
+			// Over Moia: ticks until her enrage charge finishes (kill the binders before it does)
+			String text = Integer.toString(charge);
+			Point point = moia.getCanvasTextLocation(graphics, text, config.textZ());
+			if (point != null)
+			{
+				renderText(graphics, point, text, ENRAGE_COLOR);
+			}
+		}
+
 		if (config.moiaCough())
 		{
-			// Over everyone coughing: ticks until their next cough : coughs left (size 20)
+			// Over everyone coughing: ticks until their next cough : coughs left (size 12)
 			java.awt.Font font = graphics.getFont();
-			graphics.setFont(font.deriveFont(20f));
+			graphics.setFont(font.deriveFont(12f));
 			for (java.util.Map.Entry<Actor, String> e : encounter.getCoughLabels().entrySet())
 			{
 				Point point = e.getKey().getCanvasTextLocation(graphics, e.getValue(), config.textZ());
