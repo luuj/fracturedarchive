@@ -77,7 +77,6 @@ public class Necromancer extends Encounter
 	 */
 	static final int COUGH_GAP = 8;
 	private static final int FIRST_COUGH_TICKS = 3;
-	private static final int COUGH_END_DAMAGE = 5;
 	/** At most 4 coughs each (it can end sooner, on a cough that hits for 5). */
 	static final int MAX_COUGHS = 4;
 
@@ -89,6 +88,9 @@ public class Necromancer extends Encounter
 	private final java.util.Map<net.runelite.api.Actor, Integer> coughEnded = new java.util.WeakHashMap<>();
 	/** How many times each has coughed so far. */
 	private final java.util.Map<net.runelite.api.Actor, Integer> coughCount = new java.util.WeakHashMap<>();
+	/** When each caught it, and when each was last reinfected. */
+	private final java.util.Map<net.runelite.api.Actor, Integer> infectedTick = new java.util.WeakHashMap<>();
+	private final java.util.Map<net.runelite.api.Actor, Integer> resetTick = new java.util.WeakHashMap<>();
 
 	Set<net.runelite.api.Projectile> getMagicProjectiles()
 	{
@@ -96,14 +98,13 @@ public class Necromancer extends Encounter
 		return magicProjectiles;
 	}
 
-	/** Everyone coughing: "ticks until their next cough:coughs left". */
+	/** Everyone coughing, with how many coughs they have left. */
 	java.util.Map<net.runelite.api.Actor, String> getCoughLabels()
 	{
 		java.util.Map<net.runelite.api.Actor, String> labels = new java.util.HashMap<>();
 		for (java.util.Map.Entry<net.runelite.api.Actor, Integer> e : getCoughTicks().entrySet())
 		{
-			int left = MAX_COUGHS - coughCount.getOrDefault(e.getKey(), 0);
-			labels.put(e.getKey(), e.getValue() + ":" + left);
+			labels.put(e.getKey(), Integer.toString(MAX_COUGHS - coughCount.getOrDefault(e.getKey(), 0)));
 		}
 		return labels;
 	}
@@ -153,6 +154,15 @@ public class Necromancer extends Encounter
 		return enraged ? null : specials % 3 == 2;
 	}
 
+	/** Where Moia starts: the binders' grid of spots is east of here, centred 8 east and 1 north. */
+	private net.runelite.api.coords.WorldPoint moiaStart;
+
+	/** The middle spot of the binders' grid. */
+	net.runelite.api.coords.WorldPoint getBinderGridCenter()
+	{
+		return moiaStart == null ? null : moiaStart.dx(8).dy(1);
+	}
+
 	/** Ticks until her enrage charge finishes (0 = not charging). */
 	int getChargeTicks()
 	{
@@ -198,10 +208,13 @@ public class Necromancer extends Encounter
 		lastCough.clear();
 		coughEnded.clear();
 		coughCount.clear();
+		infectedTick.clear();
+		resetTick.clear();
 		chargeStartTick = -1;
 		charges = 0;
 		specials = 0;
 		enraged = false;
+		moiaStart = null;
 	}
 
 	/** In the fight: Moia's up, or she's vanished mid-fight to enrage. */
@@ -214,6 +227,15 @@ public class Necromancer extends Encounter
 	public void onGameTick(GameTick event)
 	{
 		logger.onGameTick();
+		if (!logger.isActive())
+		{
+			// Out of the room: start the next fight fresh
+			moiaStart = null;
+			enraged = false;
+			specials = 0;
+			charges = 0;
+			chargeStartTick = -1;
+		}
 	}
 
 	@Override
@@ -221,6 +243,13 @@ public class Necromancer extends Encounter
 	{
 		super.onNpcSpawned(event);
 		logger.onNpcSpawned(event);
+		net.runelite.api.NPC npc = event.getNpc();
+		if (npc.getId() == NpcID.TFA_MOIA && moiaStart == null)
+		{
+			// Where she starts (she reappears somewhere else when she enrages)
+			moiaStart = npc.getWorldLocation();
+		}
+
 	}
 
 	@Override
@@ -276,6 +305,7 @@ public class Necromancer extends Encounter
 				// First cough 3 ticks after it's thrown
 				lastCough.put(p.getTargetActor(), client.getTickCount() + FIRST_COUGH_TICKS - COUGH_GAP);
 				coughCount.put(p.getTargetActor(), 0);
+				infectedTick.put(p.getTargetActor(), client.getTickCount());
 			}
 		}
 		logger.onProjectileMoved(event);
@@ -336,22 +366,43 @@ public class Necromancer extends Encounter
 		if ("*Cough*".equals(event.getOverheadText()) && event.getActor() != null
 			&& !Integer.valueOf(client.getTickCount()).equals(coughEnded.get(event.getActor())))
 		{
+			int tick = client.getTickCount();
 			net.runelite.api.Actor actor = event.getActor();
 			if (!lastCough.containsKey(actor))
 			{
 				coughCount.put(actor, 0);
+				infectedTick.put(actor, tick);
 			}
-			int count = coughCount.merge(actor, 1, Integer::sum);
+
+			// A cough reinfects anyone already coughing next to it (a binder that caught it from
+			// you gives it straight back): their 4 start again after this tick
+			net.runelite.api.coords.WorldPoint at = actor.getWorldLocation();
+			for (net.runelite.api.Actor other : new java.util.ArrayList<>(lastCough.keySet()))
+			{
+				if (other == actor || tick == infectedTick.getOrDefault(other, -1))
+				{
+					continue;
+				}
+				net.runelite.api.coords.WorldPoint p = other.getWorldLocation();
+				if (at != null && p != null && p.getPlane() == at.getPlane()
+					&& Math.max(Math.abs(p.getX() - at.getX()), Math.abs(p.getY() - at.getY())) <= 1)
+				{
+					coughCount.put(other, 0);
+					resetTick.put(other, tick);
+				}
+			}
+
+			int count = tick == resetTick.getOrDefault(actor, -1) ? 0 : coughCount.merge(actor, 1, Integer::sum);
 			if (count >= MAX_COUGHS)
 			{
 				// That was the last one
 				lastCough.remove(actor);
 				coughCount.remove(actor);
-				coughEnded.put(actor, client.getTickCount());
+				coughEnded.put(actor, tick);
 			}
 			else
 			{
-				lastCough.put(actor, client.getTickCount());
+				lastCough.put(actor, tick);
 			}
 		}
 		logger.onOverheadTextChanged(event);
@@ -372,14 +423,6 @@ public class Necromancer extends Encounter
 	@Override
 	public void onHitsplatApplied(net.runelite.api.events.HitsplatApplied event)
 	{
-		// A cough that hits for 5 is the last one
-		if (event.getHitsplat().getHitsplatType() == net.runelite.api.HitsplatID.POISON
-			&& event.getHitsplat().getAmount() == COUGH_END_DAMAGE && lastCough.containsKey(event.getActor()))
-		{
-			lastCough.remove(event.getActor());
-			coughCount.remove(event.getActor());
-			coughEnded.put(event.getActor(), client.getTickCount());
-		}
 		logger.onHitsplatApplied(event);
 	}
 }

@@ -78,6 +78,16 @@ public class DagonhaiTrio extends Encounter
 	 */
 	private static final int CHANNEL_TICKS = 18;
 	private static final int INCANTATION_TICKS = 8;
+	/** "What have we here?": an incantation's coming (the god is called 3 ticks later). */
+	private static final int WARNING_TICKS = 5;
+	private final java.util.Map<net.runelite.api.NPC, Integer> warnings = new java.util.HashMap<>();
+
+	java.util.Set<net.runelite.api.NPC> getIncantationWarnings()
+	{
+		int tick = client.getTickCount();
+		warnings.entrySet().removeIf(e -> tick - e.getValue() >= WARNING_TICKS || e.getKey().isDead());
+		return warnings.keySet();
+	}
 	private final java.util.Map<net.runelite.api.NPC, Element> channels = new java.util.HashMap<>();
 	private final java.util.Map<net.runelite.api.NPC, God> incantations = new java.util.HashMap<>();
 	private final java.util.Map<net.runelite.api.NPC, Integer> startTicks = new java.util.HashMap<>();
@@ -199,9 +209,14 @@ public class DagonhaiTrio extends Encounter
 		}
 		else if (god != null)
 		{
+			warnings.remove(npc);
 			channels.remove(npc);
 			incantations.put(npc, god);
 			startTicks.put(npc, client.getTickCount());
+		}
+		else if (t.contains("what have we here"))
+		{
+			warnings.put(npc, client.getTickCount());
 		}
 		else if (t.contains("argh") || t.contains("curse you"))
 		{
@@ -238,6 +253,7 @@ public class DagonhaiTrio extends Encounter
 		channels.clear();
 		incantations.clear();
 		startTicks.clear();
+		warnings.clear();
 	}
 
 	@Override

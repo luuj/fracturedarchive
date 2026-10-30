@@ -196,6 +196,7 @@ public class FinalBoss extends Encounter
 		tendrilStarts.clear();
 		tendrilChargeTick = -100;
 		inCenter = false;
+		outerTendrils.clear();
 		lastShotTick = -10;
 		countedShots.clear();
 		attackStyle = null;
@@ -376,10 +377,40 @@ public class FinalBoss extends Encounter
 	 */
 	private boolean inCenter;
 
+	/**
+	 * In the corners his slow ground attack sends out 7 tendrils one after another, 2 ticks
+	 * apart, each going off 5 ticks after it appears (the same +2 as the centre ones, since they
+	 * show up at the very end of a tick).
+	 */
+	private static final int OUTER_TENDRIL_TICKS = 7;
+	private final Map<String, OuterTendril> outerTendrils = new HashMap<>();
+
+	private static final class OuterTendril
+	{
+		final int spawnTick;
+		WorldPoint start;
+		final java.util.List<WorldPoint> tiles = new java.util.ArrayList<>();
+
+		OuterTendril(int spawnTick)
+		{
+			this.spawnTick = spawnTick;
+		}
+	}
+
 	/** Ticks until this tendril tile goes off, by tile (only tiles still to go off). */
 	Map<WorldPoint, Integer> getTendrilTiles()
 	{
 		Map<WorldPoint, Integer> left = new HashMap<>();
+		int now = client.getTickCount();
+		outerTendrils.values().removeIf(o -> OUTER_TENDRIL_TICKS - (now - o.spawnTick) < 0);
+		for (OuterTendril o : outerTendrils.values())
+		{
+			int ticks = OUTER_TENDRIL_TICKS - (now - o.spawnTick);
+			for (WorldPoint wp : o.tiles)
+			{
+				left.merge(wp, ticks, Math::min);
+			}
+		}
 		int elapsed = client.getTickCount() - tendrilChargeTick;
 		for (Map.Entry<WorldPoint, Integer> e : tendrilSides.entrySet())
 		{
@@ -399,6 +430,24 @@ public class FinalBoss extends Encounter
 	Map<WorldPoint, Integer> getTendrilLabels()
 	{
 		Map<WorldPoint, Integer> labels = new HashMap<>();
+		int now = client.getTickCount();
+		for (OuterTendril o : outerTendrils.values())
+		{
+			int ticks = OUTER_TENDRIL_TICKS - (now - o.spawnTick);
+			if (ticks <= 0 || o.start == null)
+			{
+				continue;
+			}
+			WorldPoint inner = o.start;
+			for (WorldPoint wp : o.tiles)
+			{
+				if (o.start.distanceTo2D(wp) > o.start.distanceTo2D(inner))
+				{
+					inner = wp;
+				}
+			}
+			labels.merge(inner, ticks, Math::min);
+		}
 		int elapsed = client.getTickCount() - tendrilChargeTick;
 		for (Map.Entry<Integer, WorldPoint> e : tendrilStarts.entrySet())
 		{
@@ -426,6 +475,22 @@ public class FinalBoss extends Encounter
 	{
 		boolean first = tendrilStarts.containsKey((side + 1) % 4) || tendrilSides.containsValue((side + 1) % 4);
 		return first ? FIRST_TENDRIL_TICKS : SECOND_TENDRIL_TICKS;
+	}
+
+	/** The side (0-3) of a corner tendril's (crack 01) start or body graphic, or -1. */
+	private static int crackOneSide(int id)
+	{
+		if (id >= net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_01_START
+			&& id <= net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_01_START_270)
+		{
+			return id - net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_01_START;
+		}
+		int body = id - net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_01;
+		if (body >= 0 && body <= 6 && body % 2 == 0)
+		{
+			return body / 2;
+		}
+		return -1;
 	}
 
 	/** The side (0-3) a tendril graphic is on, or -1 if it isn't the start or body of one. */
@@ -1277,6 +1342,24 @@ public class FinalBoss extends Encounter
 		}
 
 		int side = tendrilSide(id);
+		int outerSide = side >= 0 ? side : crackOneSide(id);
+		if (outerSide >= 0 && !inCenter)
+		{
+			// One of the 7 in the corners: group its tiles by when it appeared and which way it runs
+			boolean startTile = (id >= net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_01_START
+				&& id <= net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_01_START_270)
+				|| (id >= net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_02_START
+				&& id <= net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_02_START_270);
+			boolean crackOne = id < net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P1_FLOOR_CRACK_02_START;
+			String key = tick + ":" + crackOne + ":" + outerSide;
+			OuterTendril o = outerTendrils.computeIfAbsent(key, k -> new OuterTendril(tick));
+			WorldPoint wp = WorldPoint.fromLocal(client, event.getGraphicsObject().getLocation());
+			o.tiles.add(wp);
+			if (startTile)
+			{
+				o.start = wp;
+			}
+		}
 		if (side >= 0 && inCenter)
 		{
 			if (tick - tendrilChargeTick > 2)

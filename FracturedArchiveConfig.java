@@ -469,7 +469,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "dagonhaiIncantations",
 		name = "Incantations",
-		description = "Highlight the wizard calling on a god, with which one: Zamorak, Bandos or Saradomin",
+		description = "Highlight the monk about to call on a god (\"Incantation\" at \"What have we here?\"), then which god: Zamorak, Bandos or Saradomin",
 		position = 2,
 		section = dagonhaitrioSection
 	)
@@ -555,7 +555,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "moiaCough",
 		name = "Cough timer",
-		description = "Over everyone coughing (players and binders): ticks until their next cough : coughs left (purple)",
+		description = "Over everyone coughing (players and binders): how many coughs they have left, from 4 (purple)",
 		position = 1,
 		section = necromancerSection
 	)
@@ -567,7 +567,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "moiaBinders",
 		name = "Undead binders",
-		description = "Highlight the 3x3 around each undead binder (red)",
+		description = "Highlight the 3x3 around each undead binder (red; green for one on the centre spot)",
 		position = 2,
 		section = necromancerSection
 	)

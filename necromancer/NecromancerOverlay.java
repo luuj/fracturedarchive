@@ -19,6 +19,8 @@ public class NecromancerOverlay extends EncounterOverlay
 {
 	private static final Color BINDER_BORDER = new Color(255, 0, 0, 150);
 	private static final Color BINDER_FILL = new Color(255, 0, 0, 25);
+	private static final Color CENTER_BORDER = new Color(0, 255, 0, 150);
+	private static final Color CENTER_FILL = new Color(0, 255, 0, 25);
 	private static final Color COUGH_COLOR = new Color(170, 0, 255);
 	private static final Color ENRAGE_COLOR = new Color(255, 115, 0);
 
@@ -41,14 +43,17 @@ public class NecromancerOverlay extends EncounterOverlay
 
 		if (config.moiaBinders())
 		{
-			// The 3x3 around each undead binder
+			// The 3x3 around each undead binder: green for one on the centre spot of their grid
+			// (only when three are in a row down the middle), red otherwise
+			net.runelite.api.coords.WorldPoint center = encounter.getBinderGridCenter();
 			for (NPC binder : encounter.getBinders())
 			{
 				LocalPoint lp = binder.getLocalLocation();
 				if (lp != null)
 				{
+					boolean middle = center != null && center.equals(binder.getWorldLocation());
 					Polygon area = Perspective.getCanvasTileAreaPoly(client, lp, 3);
-					renderPoly(graphics, area, BINDER_BORDER, BINDER_FILL, config.borderWidth());
+					renderPoly(graphics, area, middle ? CENTER_BORDER : BINDER_BORDER, middle ? CENTER_FILL : BINDER_FILL, config.borderWidth());
 				}
 			}
 		}
@@ -94,9 +99,9 @@ public class NecromancerOverlay extends EncounterOverlay
 
 		if (config.moiaCough())
 		{
-			// Over everyone coughing: ticks until their next cough : coughs left (size 12)
+			// Over everyone coughing: how many coughs they have left (size 20)
 			java.awt.Font font = graphics.getFont();
-			graphics.setFont(font.deriveFont(12f));
+			graphics.setFont(font.deriveFont(20f));
 			for (java.util.Map.Entry<Actor, String> e : encounter.getCoughLabels().entrySet())
 			{
 				Point point = e.getKey().getCanvasTextLocation(graphics, e.getValue(), config.textZ());

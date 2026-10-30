@@ -232,6 +232,13 @@ public class DagonhaiTrioOverlay extends EncounterOverlay
 
 		if (config.dagonhaiIncantations())
 		{
+			// "What have we here?": an incantation's coming from this monk
+			for (NPC monk : encounter.getIncantationWarnings())
+			{
+				outline(graphics, monk, size(monk), Color.WHITE);
+				label(graphics, monk, "Incantation", Color.WHITE);
+			}
+
 			// The wizard calling on a god: its tile, with the god's name (size 12, like "Tank")
 			for (Map.Entry<NPC, DagonhaiTrio.God> e : encounter.getIncantations().entrySet())
 			{
