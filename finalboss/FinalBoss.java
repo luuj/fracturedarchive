@@ -45,7 +45,7 @@ public class FinalBoss extends Encounter
 	static final Color SPECIAL_COLOR = new Color(255, 115, 0);
 	static final Color MAGIC_COLOR = Color.CYAN;
 	static final Color RANGED_COLOR = Color.GREEN;
-	static final Color DANGER_COLOR = new Color(255, 0, 0, 75);
+	static final Color DANGER_COLOR = new Color(255, 0, 0, 50);
 	static final Color ARTIFACT_COLOR = Color.WHITE;
 	static final Color PORTAL_CROSSING_COLOR = Color.GREEN;
 	static final Color NEXT_CROSSING_COLOR = new Color(255, 255, 160);
@@ -403,7 +403,8 @@ public class FinalBoss extends Encounter
 		Map<WorldPoint, Integer> left = new HashMap<>();
 		int now = client.getTickCount();
 		outerTendrils.values().removeIf(o -> OUTER_TENDRIL_TICKS - (now - o.spawnTick) < 0);
-		for (OuterTendril o : outerTendrils.values())
+		// Corner tendrils: only the next two to go off, matching their counters
+		for (OuterTendril o : nextOuterTendrils())
 		{
 			int ticks = OUTER_TENDRIL_TICKS - (now - o.spawnTick);
 			for (WorldPoint wp : o.tiles)
@@ -431,10 +432,12 @@ public class FinalBoss extends Encounter
 	{
 		Map<WorldPoint, Integer> labels = new HashMap<>();
 		int now = client.getTickCount();
-		for (OuterTendril o : outerTendrils.values())
+		// Corner tendrils: only the next two to go off (the one to stand on now and the one to
+		// move to after), so the 7 don't clutter the floor
+		for (OuterTendril o : nextOuterTendrils())
 		{
 			int ticks = OUTER_TENDRIL_TICKS - (now - o.spawnTick);
-			if (ticks <= 0 || o.start == null)
+			if (o.start == null || ticks <= 0)
 			{
 				continue;
 			}
@@ -469,6 +472,25 @@ public class FinalBoss extends Encounter
 			labels.put(inner, ticks);
 		}
 		return labels;
+	}
+
+	/**
+	 * The next two corner tendrils still to go off (the soonest first): the highlights and the
+	 * counters both use these, so they always match.
+	 */
+	private java.util.List<OuterTendril> nextOuterTendrils()
+	{
+		int now = client.getTickCount();
+		java.util.List<OuterTendril> next = new java.util.ArrayList<>();
+		for (OuterTendril o : outerTendrils.values())
+		{
+			if (OUTER_TENDRIL_TICKS - (now - o.spawnTick) >= 0)
+			{
+				next.add(o);
+			}
+		}
+		next.sort(java.util.Comparator.comparingInt(o -> o.spawnTick));
+		return next.subList(0, Math.min(2, next.size()));
 	}
 
 	private int tendrilTicks(int side)

@@ -555,7 +555,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "moiaCough",
 		name = "Cough timer",
-		description = "Over everyone coughing (players and binders): how many coughs they have left, from 4 (purple)",
+		description = "Highlight everyone coughing (yellow tiles), and list the players with how many coughs they have left, from 4, in a box above the chat box",
 		position = 1,
 		section = necromancerSection
 	)
@@ -567,7 +567,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "moiaBinders",
 		name = "Undead binders",
-		description = "Highlight the 3x3 around each undead binder (red; green for one on the centre spot)",
+		description = "Highlight each undead binder's tile: white, or green for the one on the centre spot of their grid",
 		position = 2,
 		section = necromancerSection
 	)
@@ -596,6 +596,18 @@ public interface FracturedArchiveConfig extends Config
 		section = necromancerSection
 	)
 	default boolean moiaNextSpecial()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "moiaBinderSpots",
+		name = "Binder spots",
+		description = "Mark the 9 spots the undead binders stand on, numbered in the order they walk them (until she enrages)",
+		position = 5,
+		section = necromancerSection
+	)
+	default boolean moiaBinderSpots()
 	{
 		return true;
 	}

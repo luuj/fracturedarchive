@@ -85,7 +85,7 @@ public class FinalBossOverlay extends EncounterOverlay
 		if (config.ocellusGroundMarkers())
 		{
 			Color danger = FinalBoss.DANGER_COLOR;
-			Color dangerFill = alpha(danger, 50);
+			Color dangerFill = alpha(danger, 20);
 
 			for (TileObject o : encounter.getDangerObjects())
 			{
@@ -111,7 +111,9 @@ public class FinalBossOverlay extends EncounterOverlay
 					java.awt.Font font = graphics.getFont();
 					graphics.setFont(font.deriveFont(20f));
 					String text = Integer.toString(label.getValue());
-					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text, FinalBoss.SPECIAL_COLOR);
+					// Green at 2 and 1 (get on it now), orange before that
+					renderText(graphics, Perspective.getCanvasTextLocation(client, graphics, lp, text, 0), text,
+						label.getValue() <= 2 ? Color.GREEN : FinalBoss.SPECIAL_COLOR);
 					graphics.setFont(font);
 				}
 			}
