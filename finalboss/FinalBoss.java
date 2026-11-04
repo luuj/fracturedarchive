@@ -86,6 +86,13 @@ public class FinalBoss extends Encounter
 		// The loop and out parts don't restart it (see onAnimationChanged)
 		Map.entry(AnimationID.NPC_OCELLUS_PHASE3_PRAYER_IN, AttackStyle.PRAYER));
 
+	/** Insolence's ground slam (he says "Insolence..." 2 ticks before the first). */
+	private static final int INSOLENCE_SLAM = 14848;
+
+	/** Ticks between Insolence's 3 slams, and the tick of its first slam (-1 = none). */
+	private static final int INSOLENCE_SLAM_GAP = 5;
+	private int insolenceSlamTick = -1;
+
 	/** Length for attacks that haven't been timed yet. */
 	private static final int DEFAULT_ATTACK_TICKS = 5;
 
@@ -93,7 +100,9 @@ public class FinalBoss extends Encounter
 	private static final Map<Integer, Integer> KNOWN_TICKS = Map.of(
 		AnimationID.NPC_OCELLUS_PHASE3_MELEE_BASIC, 4,
 		AnimationID.NPC_OCELLUS_PHASE3_MELEE_SLASH, 5,
-		AnimationID.NPC_OCELLUS_PHASE3_MELEE_HYBRID, 7);
+		AnimationID.NPC_OCELLUS_PHASE3_MELEE_HYBRID, 7,
+		// Insolence: each of its slams (14848, 5 ticks apart) was showing 4; one more, set in game
+		INSOLENCE_SLAM, 6);
 	// Basic melee and sweep: 4 and 5 line up in game (his swings are 3 and 4 ticks apart)
 	// The prayer special's two hits use the "Prayer attack" settings (see onAnimationChanged)
 
@@ -154,7 +163,9 @@ public class FinalBoss extends Encounter
 	private boolean afterSweep = true;
 	/**
 	 * His specials alternate: the prayer turn-off, then Untether or Insolence, then the prayer
-	 * turn-off again, and so on, starting with the prayer turn-off. Obliteration doesn't count.
+	 * turn-off again, and so on, starting with the prayer turn-off. Moving quadrant (Obliteration/
+	 * Run) doesn't change whose turn it is (in 84 of 86 moves in the logs): if the prayer turn-off
+	 * came just before the move, the first special after it is Insolence.
 	 */
 	private boolean prayerNext = true;
 
@@ -169,6 +180,23 @@ public class FinalBoss extends Encounter
 
 	@Inject
 	private FinalBossOverlay overlay;
+
+	@Inject
+	private SpecialQueuePanel specialQueuePanel;
+
+	@Override
+	public void load()
+	{
+		super.load();
+		overlayManager.add(specialQueuePanel);
+	}
+
+	@Override
+	public void unload()
+	{
+		overlayManager.remove(specialQueuePanel);
+		super.unload();
+	}
 
 	@Inject
 	protected FinalBoss(FracturedArchiveConfig config)
@@ -212,7 +240,8 @@ public class FinalBoss extends Encounter
 		sweepShownUntil = -1;
 		comboCount = 0;
 		afterSweep = true;
-		prayerNext = true;
+		// prayerNext and insolenceNext carry over: he can leave and come back (each quadrant), and
+		// the specials pick up where they left off. They start over when a new fight starts.
 	}
 
 	/** The "safe portal" graphic the game puts where the orange portals' lines cross. */
@@ -225,6 +254,10 @@ public class FinalBoss extends Encounter
 	{
 		super.onNpcSpawned(event);
 		trackPortal(event.getNpc());
+		if (event.getNpc().getId() == NpcID.TFA_OCELLUS_P1)
+		{
+			startFight();
+		}
 	}
 
 	@Override
@@ -233,6 +266,12 @@ public class FinalBoss extends Encounter
 		super.onNpcChanged(event);
 		portals.remove(event.getNpc());
 		trackPortal(event.getNpc());
+		if (event.getNpc().getId() == NpcID.TFA_OCELLUS_P1 && event.getOld() != null
+			&& event.getOld().getId() != NpcID.TFA_OCELLUS_P1)
+		{
+			// Turned into his phase 1 form from the waiting one: a new fight
+			startFight();
+		}
 	}
 
 	@Override
@@ -403,7 +442,7 @@ public class FinalBoss extends Encounter
 		Map<WorldPoint, Integer> left = new HashMap<>();
 		int now = client.getTickCount();
 		outerTendrils.values().removeIf(o -> OUTER_TENDRIL_TICKS - (now - o.spawnTick) < 0);
-		// Corner tendrils: only the next two to go off, matching their counters
+		// Corner tendrils: only the next three to go off, matching their counters
 		for (OuterTendril o : nextOuterTendrils())
 		{
 			int ticks = OUTER_TENDRIL_TICKS - (now - o.spawnTick);
@@ -432,7 +471,7 @@ public class FinalBoss extends Encounter
 	{
 		Map<WorldPoint, Integer> labels = new HashMap<>();
 		int now = client.getTickCount();
-		// Corner tendrils: only the next two to go off (the one to stand on now and the one to
+		// Corner tendrils: only the next three to go off (the one to stand on now and the ones to
 		// move to after), so the 7 don't clutter the floor
 		for (OuterTendril o : nextOuterTendrils())
 		{
@@ -475,9 +514,11 @@ public class FinalBoss extends Encounter
 	}
 
 	/**
-	 * The next two corner tendrils still to go off (the soonest first): the highlights and the
+	 * The next three corner tendrils still to go off (the soonest first): the highlights and the
 	 * counters both use these, so they always match.
 	 */
+	private static final int OUTER_TENDRILS_SHOWN = 3;
+
 	private java.util.List<OuterTendril> nextOuterTendrils()
 	{
 		int now = client.getTickCount();
@@ -490,7 +531,7 @@ public class FinalBoss extends Encounter
 			}
 		}
 		next.sort(java.util.Comparator.comparingInt(o -> o.spawnTick));
-		return next.subList(0, Math.min(2, next.size()));
+		return next.subList(0, Math.min(OUTER_TENDRILS_SHOWN, next.size()));
 	}
 
 	private int tendrilTicks(int side)
@@ -755,8 +796,79 @@ public class FinalBoss extends Encounter
 		return Math.max(0, obliterationEndTick - client.getTickCount());
 	}
 
+	/**
+	 * Which orange special is next. From the logs (every fight): the first is Untether, then they
+	 * alternate, except that after Obliteration/Run the next is always Insolence.
+	 */
+	private boolean insolenceNext;
+
+	/**
+	 * Quadrant moves (Obliteration/Run) this fight. There are 3, and he does no more specials
+	 * after the third (the last quadrant), in every fight in the logs.
+	 */
+	private int quadrantMoves;
+	private int lastMoveTick = -100;
+	private static final int LAST_QUADRANT_MOVES = 3;
+
+	/** Whether he's in the last quadrant (no specials left). */
+	boolean isLastQuadrant()
+	{
+		return quadrantMoves >= LAST_QUADRANT_MOVES;
+	}
+
+	/**
+	 * A new fight: his first special is the prayer turn-off, then Untether, and no quadrant
+	 * moves yet. Called on "Challenge started: Ocellus" (he's already there as a different NPC
+	 * while you wait, so his spawn isn't always seen), and on his phase 1 form appearing.
+	 */
+	private void startFight()
+	{
+		prayerNext = true;
+		insolenceNext = false;
+		quadrantMoves = 0;
+		lastMoveTick = -100;
+	}
+
+	/** The name of his next orange special: "Insolence" or "Untether". */
+	String getNextOrangeSpecial()
+	{
+		return insolenceNext ? "Insolence" : "Untether";
+	}
+
+	private void checkOrangeSpecial(String text)
+	{
+		if (text == null)
+		{
+			return;
+		}
+		String lower = text.toLowerCase();
+		// The line is the start of the special: move the queue on straight away (the prayer
+		// turn-off is next either way), rather than waiting for its attack animation
+		if (lower.startsWith("untether"))
+		{
+			insolenceNext = true;
+			prayerNext = true;
+		}
+		else if (lower.startsWith("insolence"))
+		{
+			insolenceNext = false;
+			prayerNext = true;
+		}
+		else if (OBLITERATION_PHRASES.matcher(text).find())
+		{
+			insolenceNext = true;
+			// Heard twice (overhead and chat): count each move once
+			if (client.getTickCount() - lastMoveTick > 5)
+			{
+				quadrantMoves++;
+				lastMoveTick = client.getTickCount();
+			}
+		}
+	}
+
 	private void checkObliteration(String text)
 	{
+		checkOrangeSpecial(text);
 		if (text != null && OBLITERATION_PHRASES.matcher(text).find()
 			&& getObliterationTicks() == 0)
 		{
@@ -1278,6 +1390,15 @@ public class FinalBoss extends Encounter
 		AttackStyle style = ATTACKS.get(animation);
 		if (style != null)
 		{
+			if (animation != INSOLENCE_SLAM)
+			{
+				insolenceSlamTick = -1;
+			}
+			else if (insolenceSlamTick < 0 || client.getTickCount() - insolenceSlamTick > INSOLENCE_SLAM_GAP * 2 + 2)
+			{
+				// Insolence's first slam: the other two follow 5 and 10 ticks later
+				insolenceSlamTick = client.getTickCount();
+			}
 			prayerHolding = false;
 			hybridPending = animation == AnimationID.NPC_OCELLUS_PHASE3_MELEE_HYBRID;
 			// The count starts on the game tick after the animation is seen, so the first number
@@ -1309,6 +1430,22 @@ public class FinalBoss extends Encounter
 		if (attackStyle != null && attackStartTick < 0)
 		{
 			attackStartTick = client.getTickCount();
+		}
+		if (insolenceSlamTick >= 0)
+		{
+			// Insolence always slams 3 times, 5 ticks apart, but the game doesn't always send the
+			// 2nd or 3rd slam's animation (in about 1 in 3 casts in the logs). Restart the counter for
+			// those slams anyway, on the same tick the animation would have.
+			int since = client.getTickCount() - insolenceSlamTick;
+			if (since == INSOLENCE_SLAM_GAP + 1 || since == INSOLENCE_SLAM_GAP * 2 + 1)
+			{
+				attackStartTick = client.getTickCount();
+				attackLength = KNOWN_TICKS.get(INSOLENCE_SLAM);
+			}
+			else if (since > INSOLENCE_SLAM_GAP * 2 + 1)
+			{
+				insolenceSlamTick = -1;
+			}
 		}
 		// While he holds the prayer attack it hits every few ticks until his "prayer out" effect
 		// (4327) shows on him; the hit after that is the last one.
@@ -1436,6 +1573,10 @@ public class FinalBoss extends Encounter
 	@Override
 	public void onChatMessage(net.runelite.api.events.ChatMessage event)
 	{
+		if (event.getMessage() != null && event.getMessage().contains("Challenge started: Ocellus"))
+		{
+			startFight();
+		}
 		if (isActive() && (event.getType() == net.runelite.api.ChatMessageType.NPC_SAY
 			|| event.getType() == net.runelite.api.ChatMessageType.GAMEMESSAGE))
 		{
@@ -1513,6 +1654,29 @@ public class FinalBoss extends Encounter
 			portalSequence.clear();
 			activePortalsThisTick.clear();
 		}
+	}
+
+	/**
+	 * Where Ocellus lands in each quadrant (shown in phase 3): the south-west tile of his spot, as
+	 * offsets within the map region. The same in every log: corners at 24/36 east and 42/54 north.
+	 */
+	private static final int[][] QUADRANT_SPAWNS = {{24, 42}, {36, 42}, {24, 54}, {36, 54}};
+
+	/** The south-west tile of each quadrant's landing spot, or empty outside phase 3. */
+	java.util.List<WorldPoint> getQuadrantSpawns()
+	{
+		java.util.List<WorldPoint> spots = new java.util.ArrayList<>();
+		if (boss == null || boss.getId() != NpcID.TFA_OCELLUS_P3)
+		{
+			return spots;
+		}
+		WorldPoint at = boss.getWorldLocation();
+		int baseX = at.getX() & ~63, baseY = at.getY() & ~63;
+		for (int[] o : QUADRANT_SPAWNS)
+		{
+			spots.add(new WorldPoint(baseX + o[0], baseY + o[1], at.getPlane()));
+		}
+		return spots;
 	}
 
 	/** Logging is off (kept as a no-op so it's easy to turn back on). */

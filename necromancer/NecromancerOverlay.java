@@ -101,7 +101,7 @@ public class NecromancerOverlay extends EncounterOverlay
 		NPC boss = encounter.getBoss();
 		if (config.moiaNextSpecial() && coughNext != null && boss != null)
 		{
-			// Her next special, under where her counters go (size 12): magic (cyan) or cough (purple)
+			// Her next special, under where her counters go (size 12): magic (cyan) or cough (yellow)
 			renderStackedText(graphics, boss, coughNext ? "Cough" : "Magic", coughNext ? COUGH_COLOR : Color.CYAN, 12f);
 		}
 

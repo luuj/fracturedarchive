@@ -79,6 +79,29 @@ public class Ezekiel extends Encounter
 	private EzekielOverlay overlay;
 
 	@Inject
+	private AutocastPanel autocastPanel;
+
+	@Override
+	public void load()
+	{
+		super.load();
+		overlayManager.add(autocastPanel);
+	}
+
+	@Override
+	public void unload()
+	{
+		overlayManager.remove(autocastPanel);
+		super.unload();
+	}
+
+	@Override
+	public void onChatMessage(net.runelite.api.events.ChatMessage event)
+	{
+		autocastPanel.onChatMessage(event.getMessage());
+	}
+
+	@Inject
 	protected Ezekiel(FracturedArchiveConfig config)
 	{
 		super(config);

@@ -327,6 +327,18 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		keyName = "ezekielAutocastReminder",
+		name = "Wind Surge reminder",
+		description = "In Ezekiel's room on the standard spellbook: a box above the chat box when your harmonised nightmare staff's autocast (the last one set) isn't Wind Surge",
+		position = 15,
+		section = ezekielSection
+	)
+	default boolean ezekielAutocastReminder()
+	{
+		return true;
+	}
+
 	// Dreadnoth
 
 	@ConfigItem(
@@ -436,6 +448,18 @@ public interface FracturedArchiveConfig extends Config
 		section = xarthSection
 	)
 	default boolean xarthCorpseCountdown()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "xarthAutocastReminder",
+		name = "Water Surge reminder",
+		description = "In Xarth's room on the standard spellbook: a box above the chat box when your harmonised nightmare staff's autocast (the last one set) isn't Water Surge",
+		position = 4,
+		section = xarthSection
+	)
+	default boolean xarthAutocastReminder()
 	{
 		return true;
 	}
@@ -629,7 +653,7 @@ public interface FracturedArchiveConfig extends Config
 	@ConfigItem(
 		keyName = "ocellusSweepCounter",
 		name = "Sweep counter",
-		description = "Below the tick counter in phase 3: basic attack (1, 2, then 3 on the sweep) : which of the two combos before his special",
+		description = "Below the tick counter in phase 3: which of the two combos before his special (1 or 2), blue for the prayer turn-off or orange with Untether/Insolence",
 		position = 4,
 		section = finalbossSection
 	)
@@ -754,6 +778,42 @@ public interface FracturedArchiveConfig extends Config
 		section = finalbossSection
 	)
 	default boolean ocellusVoidPortals()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusQuadrantSpawns",
+		name = "Quadrant landing spots",
+		description = "Phase 3: outline where Ocellus lands in each quadrant (white)",
+		position = 13,
+		section = finalbossSection
+	)
+	default boolean ocellusQuadrantSpawns()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusAutocastReminder",
+		name = "Earth Surge reminder",
+		description = "Against Ocellus on the standard spellbook: a box above the chat box when your harmonised nightmare staff's autocast (the last one set) isn't Earth Surge",
+		position = 13,
+		section = finalbossSection
+	)
+	default boolean ocellusAutocastReminder()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusSpecialQueue",
+		name = "Special queue",
+		description = "Phase 3: his next two specials in a box above the chat box, red whenever the prayer turn-off is next",
+		position = 4,
+		section = finalbossSection
+	)
+	default boolean ocellusSpecialQueue()
 	{
 		return true;
 	}

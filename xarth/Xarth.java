@@ -195,7 +195,8 @@ public class Xarth extends Encounter
 			Integer spawned = corpseSpawnTicks.get(npc);
 			int wait = spawned == null ? 0 : Math.max(0, CORPSE_WAIT_TICKS - (client.getTickCount() - spawned));
 			int ticks = Math.max(dx, dy) - 1 + wait;
-			if (ticks > 0)
+			// Down to 0 (the tick it reaches him)
+			if (ticks >= 0)
 			{
 				corpses.put(npc, ticks);
 			}

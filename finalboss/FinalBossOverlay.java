@@ -23,6 +23,8 @@ import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
 @Singleton
 public class FinalBossOverlay extends EncounterOverlay
 {
+	/** Outline of where he lands in each quadrant. */
+	private static final Color SPAWN_COLOR = new Color(255, 255, 255, 150);
 	private static final int CYCLES_PER_TICK = 30;
 
 	/** Floor graphics that hit where they are: phase 1 charge cracks and explosions, phase 2 AoE, bombs, debris. */
@@ -169,6 +171,11 @@ public class FinalBossOverlay extends EncounterOverlay
 		}
 
 		NPC ocellus = encounter.getBoss();
+		if (config.ocellusQuadrantSpawns() && ocellus != null)
+		{
+			renderQuadrantSpawns(graphics, wv, ocellus);
+		}
+
 		if (config.ocellusVoidPortals() || config.ocellusVoidVine())
 		{
 			renderVoid(graphics, wv);
@@ -187,19 +194,20 @@ public class FinalBossOverlay extends EncounterOverlay
 		int sweep = encounter.getSweepCount();
 		if (config.ocellusSweepCounter() && ocellus != null && sweep > 0)
 		{
-			// Stacked directly under the tick counter (like Theatre): basic attack : combo, e.g. "2:1"
-			// is the second attack of the first combo. After the second combo's sweep comes a special:
-			// the combo number is blue when that's the prayer turn-off, orange for Untether/Insolence.
-			Color sweepColor = FinalBoss.MELEE_COLOR;
+			// Stacked directly under the tick counter (like Theatre): the combo number (1 or 2). After the
+			// second combo's sweep comes a special: blue when that's the prayer turn-off, orange for
+			// Untether/Insolence.
 			int combo = encounter.getComboCount();
 			if (combo > 0)
 			{
-				renderStackedPair(graphics, ocellus, Integer.toString(sweep), sweepColor, ":" + combo,
-					encounter.isPrayerNext() ? FinalBoss.PRAYER_COLOR : FinalBoss.SPECIAL_COLOR, 20f);
-			}
-			else
-			{
-				renderStackedText(graphics, ocellus, Integer.toString(sweep), sweepColor, 20f);
+				boolean prayer = encounter.isPrayerNext();
+				String text = Integer.toString(combo);
+				renderStackedText(graphics, ocellus, text, prayer ? FinalBoss.PRAYER_COLOR : FinalBoss.SPECIAL_COLOR, 20f);
+				if (!prayer)
+				{
+					// Which orange special: Untether or Insolence (size 12, under the count)
+					renderUnderPair(graphics, ocellus, text, encounter.getNextOrangeSpecial(), FinalBoss.SPECIAL_COLOR);
+				}
 			}
 		}
 
@@ -381,7 +389,44 @@ public class FinalBossOverlay extends EncounterOverlay
 		}
 	}
 
+	/** Outlines where Ocellus lands in each quadrant (his size), so you can keep off it. */
+	private void renderQuadrantSpawns(Graphics2D graphics, WorldView wv, NPC ocellus)
+	{
+		net.runelite.api.NPCComposition comp = ocellus.getTransformedComposition();
+		int size = comp != null ? Math.max(1, comp.getSize()) : 3;
+		for (WorldPoint sw : encounter.getQuadrantSpawns())
+		{
+			LocalPoint lp = LocalPoint.fromWorld(wv, sw);
+			if (lp == null)
+			{
+				continue;
+			}
+			// The middle of the area, which getCanvasTileAreaPoly centres on
+			LocalPoint middle = lp.plus((size - 1) * Perspective.LOCAL_TILE_SIZE / 2, (size - 1) * Perspective.LOCAL_TILE_SIZE / 2);
+			renderPoly(graphics, Perspective.getCanvasTileAreaPoly(client, middle, size), SPAWN_COLOR, null, config.borderWidth());
+		}
+	}
+
 	/** The true tile of the player the vine has trapped, or the vine's own tile if no one's on it. */
+	/** A size 12 label centered under the size 20 pair stacked under the tick counter. */
+	private void renderUnderPair(Graphics2D graphics, NPC actor, String pair, String text, Color color)
+	{
+		Point anchor = actor.getCanvasTextLocation(graphics, pair, config.textZ());
+		if (anchor == null)
+		{
+			return;
+		}
+		java.awt.Font mainFont = graphics.getFont();
+		int mainWidth = graphics.getFontMetrics().stringWidth(pair);
+		int mainHeight = graphics.getFontMetrics().getHeight();
+		graphics.setFont(mainFont.deriveFont(20f));
+		int pairHeight = graphics.getFontMetrics().getHeight();
+		graphics.setFont(mainFont.deriveFont(12f));
+		int width = graphics.getFontMetrics().stringWidth(text);
+		renderText(graphics, new Point(anchor.getX() + (mainWidth - width) / 2, anchor.getY() + mainHeight + pairHeight), text, color);
+		graphics.setFont(mainFont);
+	}
+
 	/** Like renderStackedText, but two pieces side by side in their own colors. */
 	private void renderStackedPair(Graphics2D graphics, NPC actor, String first, Color firstColor,
 		String second, Color secondColor, float size)
