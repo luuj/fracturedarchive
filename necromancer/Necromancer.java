@@ -18,7 +18,6 @@ import net.runelite.api.events.GroundObjectDespawned;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.gameval.NpcID;
-import net.runelite.client.plugins.fracturedarchive.FightLogger;
 import net.runelite.client.plugins.fracturedarchive.Encounter;
 import net.runelite.client.plugins.fracturedarchive.EncounterOverlay;
 import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
@@ -40,9 +39,10 @@ public class Necromancer extends Encounter
 	@Inject
 	private CoughPanel coughPanel;
 
-	/** Not mapped yet: log the whole fight (every NPC of it) to work its attacks out later. */
-	private static final Set<Integer> LOG_IDS = Set.of(NpcID.TFA_MOIA, NpcID.TFA_MOIA_MINION);
-	private FightLogger logger;
+	/** The fight's NPCs: while any is around, the fight's going. */
+	private static final Set<Integer> FIGHT_IDS = Set.of(NpcID.TFA_MOIA, NpcID.TFA_MOIA_MINION);
+	/** Any of the fight's NPCs is around (checked every tick). */
+	private boolean fightPresent;
 
 	@Inject
 	protected Necromancer(FracturedArchiveConfig config)
@@ -50,13 +50,6 @@ public class Necromancer extends Encounter
 		super(config);
 	}
 
-	@Override
-	public void init()
-	{
-		logger = new FightLogger(client, "Necromancer", LOG_IDS);
-		// Logging done: it's kept only to know when the fight's going
-		logger.setLogging(false);
-	}
 
 	@Override
 	protected Set<Integer> bossIds()
@@ -187,6 +180,32 @@ public class Necromancer extends Encounter
 		return moiaStart == null ? null : moiaStart.dx(8).dy(1);
 	}
 
+	/**
+	 * In the enrage: her attacks (ranged, now and then magic) are every 5 ticks, all the same
+	 * animation; the projectile says which it was.
+	 */
+	private static final int ATTACK_ANIM = 14785;
+	private static final int ATTACK_TICKS = 5;
+	private int attackTick = -1;
+	private boolean attackMagic;
+
+	/** In the enrage: ticks until her next attack (5 down to 1), or 0. */
+	int getAttackTicks()
+	{
+		if (!enraged || attackTick < 0)
+		{
+			return 0;
+		}
+		int ticks = ATTACK_TICKS - (client.getTickCount() - attackTick);
+		return Math.max(0, ticks);
+	}
+
+	/** Whether her last attack was the magic one (else ranged). */
+	boolean isLastAttackMagic()
+	{
+		return attackMagic;
+	}
+
 	/** Ticks until her enrage charge finishes (0 = not charging). */
 	int getChargeTicks()
 	{
@@ -236,7 +255,7 @@ public class Necromancer extends Encounter
 	{
 		overlayManager.remove(coughPanel);
 		super.unload();
-		logger.reset();
+		fightPresent = false;
 		lastCough.clear();
 		coughEnded.clear();
 		coughCount.clear();
@@ -244,24 +263,26 @@ public class Necromancer extends Encounter
 		charges = 0;
 		specials = 0;
 		enraged = false;
+		attackTick = -1;
 		moiaStart = null;
 	}
 
 	/** In the fight: Moia's up, or she's vanished mid-fight to enrage. */
 	boolean isFightActive()
 	{
-		return isActive() || logger.isActive();
+		return isActive() || fightPresent;
 	}
 
 	@Override
 	public void onGameTick(GameTick event)
 	{
-		logger.onGameTick();
-		if (!logger.isActive())
+		fightPresent = isFightNpcPresent();
+		if (!fightPresent)
 		{
 			// Out of the room: start the next fight fresh
 			moiaStart = null;
 			enraged = false;
+			attackTick = -1;
 			specials = 0;
 			charges = 0;
 			chargeStartTick = -1;
@@ -272,7 +293,6 @@ public class Necromancer extends Encounter
 	public void onNpcSpawned(NpcSpawned event)
 	{
 		super.onNpcSpawned(event);
-		logger.onNpcSpawned(event);
 		net.runelite.api.NPC npc = event.getNpc();
 		if (npc.getId() == NpcID.TFA_MOIA && moiaStart == null)
 		{
@@ -283,26 +303,17 @@ public class Necromancer extends Encounter
 	}
 
 	@Override
-	public void onNpcDespawned(NpcDespawned event)
-	{
-		super.onNpcDespawned(event);
-		logger.onNpcDespawned(event);
-	}
-
-	@Override
-	public void onNpcChanged(NpcChanged event)
-	{
-		super.onNpcChanged(event);
-		logger.onNpcChanged(event);
-	}
-
-	@Override
 	public void onAnimationChanged(AnimationChanged event)
 	{
 		if (event.getActor() instanceof net.runelite.api.NPC
 			&& ((net.runelite.api.NPC) event.getActor()).getId() == NpcID.TFA_MOIA)
 		{
 			int anim = event.getActor().getAnimation();
+			if (anim == ATTACK_ANIM && enraged)
+			{
+				attackTick = client.getTickCount();
+				attackMagic = false;
+			}
 			if (anim == MAGIC_SPECIAL_ANIM || anim == COUGH_SPECIAL_ANIM)
 			{
 				// Keep in step even if one was missed: a cough is always the 3rd
@@ -317,7 +328,6 @@ public class Necromancer extends Encounter
 			charges++;
 			chargeStartTick = client.getTickCount();
 		}
-		logger.onAnimationChanged(event);
 	}
 
 	@Override
@@ -329,6 +339,11 @@ public class Necromancer extends Encounter
 			if (p.getId() == MAGIC_PROJECTILE)
 			{
 				magicProjectiles.add(p);
+				if (enraged && attackTick >= 0 && client.getTickCount() - attackTick <= 1)
+				{
+					// This attack was her magic one
+					attackMagic = true;
+				}
 			}
 			else if (p.getId() == COUGH_PROJECTILE && p.getTargetActor() != null)
 			{
@@ -340,37 +355,6 @@ public class Necromancer extends Encounter
 				}
 			}
 		}
-		logger.onProjectileMoved(event);
-	}
-
-	@Override
-	public void onGraphicsObjectCreated(GraphicsObjectCreated event)
-	{
-		logger.onGraphicsObjectCreated(event);
-	}
-
-	@Override
-	public void onGameObjectSpawned(GameObjectSpawned event)
-	{
-		logger.onGameObjectSpawned(event);
-	}
-
-	@Override
-	public void onGameObjectDespawned(GameObjectDespawned event)
-	{
-		logger.onGameObjectDespawned(event);
-	}
-
-	@Override
-	public void onGroundObjectSpawned(GroundObjectSpawned event)
-	{
-		logger.onGroundObjectSpawned(event);
-	}
-
-	@Override
-	public void onGroundObjectDespawned(GroundObjectDespawned event)
-	{
-		logger.onGroundObjectDespawned(event);
 	}
 
 	@Override
@@ -386,11 +370,13 @@ public class Necromancer extends Encounter
 				charges = 0;
 				chargeStartTick = -1;
 				enraged = true;
+				attackTick = -1;
 			}
 			else if (said.startsWith("Hmph"))
 			{
 				// Dead
 				chargeStartTick = -1;
+				attackTick = -1;
 			}
 		}
 
@@ -420,24 +406,22 @@ public class Necromancer extends Encounter
 				lastCough.put(actor, tick);
 			}
 		}
-		logger.onOverheadTextChanged(event);
 	}
 
-	@Override
-	public void onChatMessage(ChatMessage event)
+	private boolean isFightNpcPresent()
 	{
-		logger.onChatMessage(event);
-	}
-
-	@Override
-	public void onVarbitChanged(VarbitChanged event)
-	{
-		logger.onVarbitChanged(event);
-	}
-
-	@Override
-	public void onHitsplatApplied(net.runelite.api.events.HitsplatApplied event)
-	{
-		logger.onHitsplatApplied(event);
+		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+		if (wv == null)
+		{
+			return fightPresent;
+		}
+		for (net.runelite.api.NPC npc : wv.npcs())
+		{
+			if (FIGHT_IDS.contains(npc.getId()))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 }

@@ -268,6 +268,18 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "ezekielSwordCrossing",
+		name = "Four-sword crossing",
+		description = "With four swords up, outline where all four of their lanes cross (orange, like the lanes)",
+		position = 1,
+		section = ezekielSection
+	)
+	default boolean ezekielSwordCrossing()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "ezekielSwordTimer",
 		name = "Sword timer",
 		description = "Count down the ticks above each sword until it goes off",
@@ -613,6 +625,18 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "moiaEnrageAttacks",
+		name = "Enrage attack counter",
+		description = "In the enrage: ticks until her next attack over Moia (every 5 ticks, green), with the enrage charge count smaller under it",
+		position = 6,
+		section = necromancerSection
+	)
+	default boolean moiaEnrageAttacks()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "moiaNextSpecial",
 		name = "Next special",
 		description = "Under Moia, her next special before she enrages: Magic or Cough (they go magic, magic, cough)",
@@ -795,6 +819,18 @@ public interface FracturedArchiveConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "ocellusStartQuadrant",
+		name = "Start quadrant",
+		description = "Mark where the fight starts: his landing spot in the quadrant diagonally opposite the Bandosian Censer, with Start on it, until the portal phase",
+		position = 13,
+		section = finalbossSection
+	)
+	default boolean ocellusStartQuadrant()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "ocellusAutocastReminder",
 		name = "Earth Surge reminder",
 		description = "Against Ocellus on the standard spellbook: a box above the chat box when your harmonised nightmare staff's autocast (the last one set) isn't Earth Surge",
@@ -814,6 +850,18 @@ public interface FracturedArchiveConfig extends Config
 		section = finalbossSection
 	)
 	default boolean ocellusSpecialQueue()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusVoidDropWarning",
+		name = "Void drop warning",
+		description = "After each quadrant move: the ticks until the void explodes (purple). It follows you from 18 ticks after the line and drops 2 ticks after you stop: from 21 ticks after the line, the count shows on your tile once you stop",
+		position = 4,
+		section = finalbossSection
+	)
+	default boolean ocellusVoidDropWarning()
 	{
 		return true;
 	}

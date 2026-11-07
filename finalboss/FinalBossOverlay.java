@@ -79,7 +79,16 @@ public class FinalBossOverlay extends EncounterOverlay
 	protected void renderEncounter(Graphics2D graphics)
 	{
 		WorldView wv = client.getTopLevelWorldView();
-		if (wv == null || !encounter.isActive())
+		if (wv == null)
+		{
+			return;
+		}
+		// Before the fight too (he's a different NPC while you wait)
+		if (config.ocellusStartQuadrant())
+		{
+			renderStartSpot(graphics, wv, encounter.getBoss());
+		}
+		if (!encounter.isActive())
 		{
 			return;
 		}
@@ -189,6 +198,11 @@ public class FinalBossOverlay extends EncounterOverlay
 		if (config.ocellusVoidChain())
 		{
 			renderVoidChain(graphics);
+		}
+
+		if (config.ocellusVoidDropWarning())
+		{
+			renderVoidDrop(graphics);
 		}
 
 		int sweep = encounter.getSweepCount();
@@ -389,6 +403,30 @@ public class FinalBossOverlay extends EncounterOverlay
 		}
 	}
 
+	/**
+	 * The starting quadrant (diagonally opposite the Bandosian Censer): his landing spot there,
+	 * outlined like the phase 3 landing spots, with "Start" on it, until the portal phase.
+	 */
+	private void renderStartSpot(Graphics2D graphics, WorldView wv, NPC ocellus)
+	{
+		WorldPoint sw = encounter.getStartSpot();
+		LocalPoint lp = sw == null ? null : LocalPoint.fromWorld(wv, sw);
+		if (lp == null)
+		{
+			return;
+		}
+		net.runelite.api.NPCComposition comp = ocellus != null ? ocellus.getTransformedComposition() : null;
+		int size = comp != null ? Math.max(1, comp.getSize()) : 3;
+		LocalPoint middle = lp.plus((size - 1) * Perspective.LOCAL_TILE_SIZE / 2, (size - 1) * Perspective.LOCAL_TILE_SIZE / 2);
+		renderPoly(graphics, Perspective.getCanvasTileAreaPoly(client, middle, size), SPAWN_COLOR, null, config.borderWidth());
+		// Size 12, like the other small labels
+		java.awt.Font font = graphics.getFont();
+		graphics.setFont(font.deriveFont(12f));
+		Point p = Perspective.getCanvasTextLocation(client, graphics, middle, "Start", 0);
+		renderText(graphics, p, "Start", Color.WHITE);
+		graphics.setFont(font);
+	}
+
 	/** Outlines where Ocellus lands in each quadrant (his size), so you can keep off it. */
 	private void renderQuadrantSpawns(Graphics2D graphics, WorldView wv, NPC ocellus)
 	{
@@ -447,6 +485,72 @@ public class FinalBossOverlay extends EncounterOverlay
 		renderText(graphics, new net.runelite.api.Point(x, y), first, firstColor);
 		renderText(graphics, new net.runelite.api.Point(x + graphics.getFontMetrics().stringWidth(first), y), second, secondColor);
 		graphics.setFont(mainFont);
+	}
+
+	/**
+	 * After a quadrant move: the ticks until the void explodes. From 18 ticks after the line it
+	 * follows you and drops 2 ticks after you stop, so once you've stopped the count shows on your
+	 * tile (up to 4), then on the dropped void's tile. Purple, outlined like the void chain count.
+	 */
+	private void renderVoidDrop(Graphics2D graphics)
+	{
+		WorldView wv = client.getTopLevelWorldView();
+		// Before it drops: once you've stopped, the ticks until it explodes, on your tile
+		int stop = encounter.getVoidStopTicks();
+		WorldPoint myTile = encounter.getMyTile();
+		if (stop > 0 && myTile != null && wv != null && !encounter.getVoidDrops().containsKey(myTile))
+		{
+			LocalPoint lp = LocalPoint.fromWorld(wv, myTile);
+			if (lp != null)
+			{
+				String text = Integer.toString(stop);
+				java.awt.Font font = graphics.getFont();
+				graphics.setFont(font.deriveFont(20f));
+				Point p = Perspective.getCanvasTextLocation(client, graphics, lp, text, 0);
+				if (p != null)
+				{
+					outlined(graphics, text, p.getX(), p.getY());
+				}
+				graphics.setFont(font);
+			}
+		}
+		for (java.util.Map.Entry<WorldPoint, Integer> drop : encounter.getVoidDrops().entrySet())
+		{
+			LocalPoint lp = wv == null ? null : LocalPoint.fromWorld(wv, drop.getKey());
+			if (lp == null)
+			{
+				continue;
+			}
+			renderPoly(graphics, Perspective.getCanvasTilePoly(client, lp), FinalBoss.VOID_CHAIN_COLOR,
+				alpha(FinalBoss.VOID_CHAIN_COLOR, 60), config.borderWidth());
+			String text = Integer.toString(drop.getValue());
+			java.awt.Font font = graphics.getFont();
+			graphics.setFont(font.deriveFont(20f));
+			Point p = Perspective.getCanvasTextLocation(client, graphics, lp, text, 0);
+			if (p != null)
+			{
+				outlined(graphics, text, p.getX(), p.getY());
+			}
+			graphics.setFont(font);
+		}
+	}
+
+	/** Purple text with a thick black outline. */
+	private static void outlined(Graphics2D graphics, String text, int x, int y)
+	{
+		graphics.setColor(Color.BLACK);
+		for (int dx = -2; dx <= 2; dx++)
+		{
+			for (int dy = -2; dy <= 2; dy++)
+			{
+				if (dx != 0 || dy != 0)
+				{
+					graphics.drawString(text, x + dx, y + dy);
+				}
+			}
+		}
+		graphics.setColor(FinalBoss.VOID_CHAIN_COLOR);
+		graphics.drawString(text, x, y);
 	}
 
 	/** Void chain: the ticks until the next explosion, over your character (when you're warned). */

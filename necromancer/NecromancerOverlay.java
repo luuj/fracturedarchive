@@ -106,15 +106,34 @@ public class NecromancerOverlay extends EncounterOverlay
 		}
 
 		int charge = encounter.getChargeTicks();
+		int attack = config.moiaEnrageAttacks() ? encounter.getAttackTicks() : 0;
 		NPC moia = encounter.getBoss();
-		if (config.moiaEnrage() && charge > 0 && moia != null)
+		if (attack > 0 && moia != null)
 		{
-			// Over Moia: ticks until her enrage charge finishes (kill the binders before it does)
-			String text = Integer.toString(charge);
+			// In the enrage: ticks until her next attack (green)
+			String text = Integer.toString(attack);
 			Point point = moia.getCanvasTextLocation(graphics, text, config.textZ());
 			if (point != null)
 			{
-				renderText(graphics, point, text, ENRAGE_COLOR);
+				renderText(graphics, point, text, Color.GREEN);
+			}
+		}
+		if (config.moiaEnrage() && charge > 0 && moia != null)
+		{
+			// Ticks until her enrage charge finishes (kill the binders before it does): over Moia,
+			// or smaller under the attack counter when that's showing
+			String text = Integer.toString(charge);
+			if (attack > 0)
+			{
+				renderStackedText(graphics, moia, text, ENRAGE_COLOR, 12f);
+			}
+			else
+			{
+				Point point = moia.getCanvasTextLocation(graphics, text, config.textZ());
+				if (point != null)
+				{
+					renderText(graphics, point, text, ENRAGE_COLOR);
+				}
 			}
 		}
 

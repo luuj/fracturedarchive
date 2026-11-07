@@ -79,6 +79,21 @@ public class ArchiveGuardian extends Encounter
 	private static final int BEAM_TICKS = 10;
 	private static final int MUSHROOM_ATTACK_TICKS = 5;
 
+	/** How long he stays down: 35 ticks the first time, 40 every time after (set in game). */
+	private static final int FIRST_DOWN_TICKS = 35;
+	private static final int LATER_DOWN_TICKS = 40;
+	/** Downs so far this fight (starts over on "Challenge started: Archive Guardian"). */
+	private int downs;
+
+	@Override
+	public void onChatMessage(net.runelite.api.events.ChatMessage event)
+	{
+		if (event.getMessage() != null && event.getMessage().contains("Challenge started: Archive Guardian"))
+		{
+			downs = 0;
+		}
+	}
+
 	/** The Guardian the counter is drawn on, and its ticks remaining (0 = no counter). */
 	private NPC counterNpc;
 	private int ticksRemaining;
@@ -188,6 +203,18 @@ public class ArchiveGuardian extends Encounter
 		if (special)
 		{
 			ticks = BEAM_TICKS;
+		}
+		if (animation == AnimationID.NPC_ARCHIVE_GUARDIAN_IDLE_TO_GROUND01)
+		{
+			if (counterAnimation == animation && ticksRemaining > 0)
+			{
+				// The same down seen again (he changes form as he goes down, which also lands
+				// here): don't count it twice
+				return;
+			}
+			// Down: 35 ticks the first time, 40 every time after
+			ticks = downs == 0 ? FIRST_DOWN_TICKS : LATER_DOWN_TICKS;
+			downs++;
 		}
 
 		// +1 and counted down each tick, the same as Boss Ticks, so your timings carry over

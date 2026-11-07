@@ -254,6 +254,10 @@ public class FinalBoss extends Encounter
 	{
 		super.onNpcSpawned(event);
 		trackPortal(event.getNpc());
+		if (event.getNpc().getId() == NpcID.TFA_OCELLUS_P2)
+		{
+			portalPhaseSeen = true;
+		}
 		if (event.getNpc().getId() == NpcID.TFA_OCELLUS_P1)
 		{
 			startFight();
@@ -266,6 +270,10 @@ public class FinalBoss extends Encounter
 		super.onNpcChanged(event);
 		portals.remove(event.getNpc());
 		trackPortal(event.getNpc());
+		if (event.getNpc().getId() == NpcID.TFA_OCELLUS_P2)
+		{
+			portalPhaseSeen = true;
+		}
 		if (event.getNpc().getId() == NpcID.TFA_OCELLUS_P1 && event.getOld() != null
 			&& event.getOld().getId() != NpcID.TFA_OCELLUS_P1)
 		{
@@ -311,6 +319,16 @@ public class FinalBoss extends Encounter
 	Collection<GameObject> getArtifacts()
 	{
 		return Collections.unmodifiableCollection(artifacts.values());
+	}
+
+	/**
+	 * No tank highlight during Untether (from his jump until he lands, about 29 ticks), or in the
+	 * last quadrant (phase 4).
+	 */
+	@Override
+	public net.runelite.api.Player getTarget()
+	{
+		return unleashing || isLastQuadrant() ? null : super.getTarget();
 	}
 
 	private void clearUnleash()
@@ -810,6 +828,120 @@ public class FinalBoss extends Encounter
 	private int lastMoveTick = -100;
 	private static final int LAST_QUADRANT_MOVES = 3;
 
+	/**
+	 * The void that follows you after each quadrant move: it marks you (effect 4302, then 4299
+	 * on you), follows you while you move, and drops on your tile once you stop (graphic 4299 on
+	 * the floor), exploding 2 ticks after it drops.
+	 */
+	private static final int VOID_MARK = 4302;
+	private static final int VOID_DROP = 4299;
+	private static final int VOID_EXPLODE_TICKS = 2;
+	/** From the line: it marks you after 18 ticks, and drops 3 ticks after that at the earliest. */
+	private static final int VOID_MARK_TICKS = 18;
+	private static final int VOID_DROP_AFTER_MARK = 3;
+	/** It drops 2 ticks after you stop moving (the tick you arrive on the tile you stop on). */
+	private static final int VOID_DROP_AFTER_STOP = 2;
+	private int voidDropEarliest = -1;
+	/** Phase 3 starts with this line; the first quadrant's void comes 15 ticks later. */
+	private static final String PHASE3_START_LINE = "This... is enough";
+	private static final int PHASE3_VOID_MARK_TICKS = 15;
+	private int phase3StartTick = -100;
+	/** The last tick your tile changed, and your tile then. */
+	private int myLastMoveTick = -1;
+	private WorldPoint myLastTile;
+	/** How long to keep the "following you" warning at most, if its drop is never seen. */
+	private static final int VOID_FOLLOW_TIMEOUT = 50;
+	private int voidFollowTick = -1;
+	private final java.util.Deque<WorldPoint> recentTiles = new java.util.ArrayDeque<>();
+	private final Map<WorldPoint, Integer> voidDrops = new HashMap<>();
+
+	/** Whether a void is following you (it drops when you stop moving). */
+	boolean isVoidFollowing()
+	{
+		return voidFollowTick >= 0 && client.getTickCount() >= voidFollowTick;
+	}
+
+	/**
+	 * While a void is following you and you've stopped: the ticks until it explodes on your tile
+	 * (it drops 2 ticks after you stop, and explodes 2 after that), or 0 while you're moving.
+	 */
+	int getVoidStopTicks()
+	{
+		int now = client.getTickCount();
+		// From the tick before the earliest drop (21 ticks after the line), so standing still it
+		// counts 3, 2, 1, and once you've stopped
+		if (!isVoidFollowing() || now < voidDropEarliest - 1 || myLastMoveTick >= now)
+		{
+			return 0;
+		}
+		int drop = Math.max(voidDropEarliest, myLastMoveTick + VOID_DROP_AFTER_STOP);
+		int ticks = drop + VOID_EXPLODE_TICKS - now;
+		return Math.max(0, ticks);
+	}
+
+	/** Your tile (where a stopped void will drop). */
+	WorldPoint getMyTile()
+	{
+		return myLastTile;
+	}
+
+	/** Dropped voids: their tile and the ticks until each explodes. */
+	Map<WorldPoint, Integer> getVoidDrops()
+	{
+		Map<WorldPoint, Integer> drops = new HashMap<>();
+		int now = client.getTickCount();
+		for (Map.Entry<WorldPoint, Integer> e : voidDrops.entrySet())
+		{
+			int ticks = VOID_EXPLODE_TICKS - (now - e.getValue());
+			if (ticks > 0)
+			{
+				drops.put(e.getKey(), ticks);
+			}
+		}
+		return drops;
+	}
+
+	private void checkVoidFollow()
+	{
+		int now = client.getTickCount();
+		voidDrops.values().removeIf(t -> now - t > VOID_EXPLODE_TICKS);
+		net.runelite.api.Player me = client.getLocalPlayer();
+		if (me == null)
+		{
+			return;
+		}
+		WorldPoint tile = me.getWorldLocation();
+		if (!tile.equals(myLastTile))
+		{
+			myLastMoveTick = now;
+			myLastTile = tile;
+		}
+		recentTiles.addFirst(tile);
+		while (recentTiles.size() > 4)
+		{
+			recentTiles.removeLast();
+		}
+		if (voidFollowTick >= 0 && now - voidFollowTick > VOID_FOLLOW_TIMEOUT)
+		{
+			voidFollowTick = -1;
+		}
+	}
+
+	private void checkVoidDrop(net.runelite.api.GraphicsObject g)
+	{
+		if (g.getId() != VOID_DROP)
+		{
+			return;
+		}
+		WorldPoint wp = WorldPoint.fromLocal(client, g.getLocation());
+		voidDrops.put(wp, client.getTickCount());
+		if (voidFollowTick >= 0 && recentTiles.contains(wp))
+		{
+			// Yours has dropped
+			voidFollowTick = -1;
+		}
+	}
+
 	/** Whether he's in the last quadrant (no specials left). */
 	boolean isLastQuadrant()
 	{
@@ -827,6 +959,9 @@ public class FinalBoss extends Encounter
 		insolenceNext = false;
 		quadrantMoves = 0;
 		lastMoveTick = -100;
+		portalPhaseSeen = false;
+		voidFollowTick = -1;
+		voidDrops.clear();
 	}
 
 	/** The name of his next orange special: "Insolence" or "Untether". */
@@ -862,6 +997,17 @@ public class FinalBoss extends Encounter
 			{
 				quadrantMoves++;
 				lastMoveTick = client.getTickCount();
+				// The void marks you 18 ticks after the line and follows you from then (not on the
+				// move into the last quadrant: no void drops there)
+				if (quadrantMoves < LAST_QUADRANT_MOVES)
+				{
+					voidFollowTick = client.getTickCount() + VOID_MARK_TICKS;
+					voidDropEarliest = client.getTickCount() + VOID_MARK_TICKS + VOID_DROP_AFTER_MARK;
+				}
+				else
+				{
+					voidFollowTick = -1;
+				}
 			}
 		}
 	}
@@ -1419,6 +1565,7 @@ public class FinalBoss extends Encounter
 	public void onGameTick(GameTick event)
 	{
 		expireOrangeCrossing();
+		checkVoidFollow();
 		checkHybridStyle();
 		if (isActive())
 		{
@@ -1490,6 +1637,8 @@ public class FinalBoss extends Encounter
 	{
 		int id = event.getGraphicsObject().getId();
 		int tick = client.getTickCount();
+		// Not only while he's up: he can be gone mid-move when the voids come
+		checkVoidDrop(event.getGraphicsObject());
 		if (unleashing && id == net.runelite.api.gameval.SpotanimID.VFX_OCELLUS_P2_AOE_DODGE && tick != lastWaveTick)
 		{
 			// Each wave drops many tiles on the same tick: count the tick once
@@ -1559,6 +1708,17 @@ public class FinalBoss extends Encounter
 	@Override
 	public void onOverheadTextChanged(net.runelite.api.events.OverheadTextChanged event)
 	{
+		// Phase 3 starting (said by his in-between form, which isn't one of his tracked forms)
+		String text = event.getOverheadText();
+		if (text != null && text.startsWith(PHASE3_START_LINE)
+			&& client.getTickCount() - phase3StartTick > 5)
+		{
+			// The first quadrant's void: it marks you 15 ticks after this line and drops 18 after
+			// at the earliest (42 of 42 in the logs)
+			phase3StartTick = client.getTickCount();
+			voidFollowTick = phase3StartTick + PHASE3_VOID_MARK_TICKS;
+			voidDropEarliest = phase3StartTick + PHASE3_VOID_MARK_TICKS + VOID_DROP_AFTER_MARK;
+		}
 		// Record what Ocellus (or anything near him) says, e.g. "insolence" or "untether"
 		if (isActive() && event.getActor() != null)
 		{
@@ -1593,6 +1753,7 @@ public class FinalBoss extends Encounter
 	{
 		GameObject o = event.getGameObject();
 		added(o);
+		checkCenser(o);
 		if (o.getId() == ObjectID.TFA_OCELLUS_QUADRANT_WALL_ACTIVE)
 		{
 			portalLit(o.getWorldLocation());
@@ -1661,6 +1822,52 @@ public class FinalBoss extends Encounter
 	 * offsets within the map region. The same in every log: corners at 24/36 east and 42/54 north.
 	 */
 	private static final int[][] QUADRANT_SPAWNS = {{24, 42}, {36, 42}, {24, 54}, {36, 54}};
+
+	/**
+	 * The Bandosian Censer (somewhere different each fight). The fight starts in the quadrant
+	 * diagonally opposite it; that's marked until the portal phase (phase 2) starts.
+	 */
+	private WorldPoint bandosCenser;
+	private boolean portalPhaseSeen;
+
+	private void checkCenser(GameObject o)
+	{
+		net.runelite.api.ObjectComposition comp = client.getObjectDefinition(o.getId());
+		if (comp != null && comp.getImpostorIds() != null)
+		{
+			net.runelite.api.ObjectComposition impostor = comp.getImpostor();
+			if (impostor != null)
+			{
+				comp = impostor;
+			}
+		}
+		String name = comp != null ? comp.getName() : null;
+		if (name != null && name.toLowerCase().contains("bandos") && name.toLowerCase().contains("censer"))
+		{
+			if (!o.getWorldLocation().equals(bandosCenser))
+			{
+				// A new arena (a new raid): show the start again
+				portalPhaseSeen = false;
+			}
+			bandosCenser = o.getWorldLocation();
+		}
+	}
+
+	/** The south-west tile of the starting quadrant's landing spot, or null once it's not needed. */
+	WorldPoint getStartSpot()
+	{
+		if (bandosCenser == null || portalPhaseSeen)
+		{
+			return null;
+		}
+		int baseX = bandosCenser.getX() & ~63, baseY = bandosCenser.getY() & ~63;
+		// The middle of the arena: Ocellus's centre spot (30, 48) plus one (he's 3 wide)
+		boolean censerWest = bandosCenser.getX() - baseX < 31;
+		boolean censerSouth = bandosCenser.getY() - baseY < 49;
+		int x = censerWest ? 36 : 24;
+		int y = censerSouth ? 54 : 42;
+		return new WorldPoint(baseX + x, baseY + y, bandosCenser.getPlane());
+	}
 
 	/** The south-west tile of each quadrant's landing spot, or empty outside phase 3. */
 	java.util.List<WorldPoint> getQuadrantSpawns()

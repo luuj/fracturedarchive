@@ -18,7 +18,6 @@ import net.runelite.api.events.GroundObjectDespawned;
 import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.gameval.NpcID;
-import net.runelite.client.plugins.fracturedarchive.FightLogger;
 import net.runelite.client.plugins.fracturedarchive.Encounter;
 import net.runelite.client.plugins.fracturedarchive.EncounterOverlay;
 import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
@@ -37,11 +36,12 @@ public class DagonhaiTrio extends Encounter
 	@Inject
 	private DagonhaiTrioOverlay overlay;
 
-	/** Not mapped yet: log the whole fight (every NPC of it) to work its attacks out later. */
-	private static final Set<Integer> LOG_IDS = Set.of(NpcID.TFA_DAGONHAI_LEADER, NpcID.TFA_DAGONHAI_LEADER_UNSHIELDED,
+	/** The fight's NPCs: while any is around, the fight's going. */
+	private static final Set<Integer> FIGHT_IDS = Set.of(NpcID.TFA_DAGONHAI_LEADER, NpcID.TFA_DAGONHAI_LEADER_UNSHIELDED,
 		NpcID.TFA_DAGONHAI_MINION_1, NpcID.TFA_DAGONHAI_MINION_1_UNSHIELDED, NpcID.TFA_DAGONHAI_MINION_2,
 		NpcID.TFA_DAGONHAI_MINION_2_UNSHIELDED, NpcID.TFA_DAGONHAI_FOCUS, NpcID.TFA_DAGONHAI_DEMON, NpcID.TFA_DAGONHAI_RIFT);
-	private FightLogger logger;
+	/** Any of the fight's NPCs is around (checked every tick). */
+	private boolean fightPresent;
 
 	@Inject
 	protected DagonhaiTrio(FracturedArchiveConfig config)
@@ -49,11 +49,6 @@ public class DagonhaiTrio extends Encounter
 		super(config);
 	}
 
-	@Override
-	public void init()
-	{
-		logger = new FightLogger(client, "Dagonhai", LOG_IDS);
-	}
 
 	/** The three wizards (the elder and the two monks, shielded or not). */
 	static final Set<Integer> WIZARD_IDS = Set.of(NpcID.TFA_DAGONHAI_LEADER, NpcID.TFA_DAGONHAI_LEADER_UNSHIELDED,
@@ -161,10 +156,10 @@ public class DagonhaiTrio extends Encounter
 		return elderMagic;
 	}
 
-	/** In the fight: the elder's up, or the fight logger still sees the room's NPCs. */
+	/** In the fight: the elder's up, or the room's NPCs are still around. */
 	boolean isFightActive()
 	{
-		return isActive() || logger.isActive();
+		return isActive() || fightPresent;
 	}
 
 	private void handleYell(net.runelite.api.NPC npc, String text)
@@ -249,7 +244,7 @@ public class DagonhaiTrio extends Encounter
 	public void unload()
 	{
 		super.unload();
-		logger.reset();
+		fightPresent = false;
 		channels.clear();
 		incantations.clear();
 		startTicks.clear();
@@ -259,28 +254,7 @@ public class DagonhaiTrio extends Encounter
 	@Override
 	public void onGameTick(GameTick event)
 	{
-		logger.onGameTick();
-	}
-
-	@Override
-	public void onNpcSpawned(NpcSpawned event)
-	{
-		super.onNpcSpawned(event);
-		logger.onNpcSpawned(event);
-	}
-
-	@Override
-	public void onNpcDespawned(NpcDespawned event)
-	{
-		super.onNpcDespawned(event);
-		logger.onNpcDespawned(event);
-	}
-
-	@Override
-	public void onNpcChanged(NpcChanged event)
-	{
-		super.onNpcChanged(event);
-		logger.onNpcChanged(event);
+		fightPresent = isFightNpcPresent();
 	}
 
 	@Override
@@ -297,43 +271,6 @@ public class DagonhaiTrio extends Encounter
 				elderMagic = anim == net.runelite.api.gameval.AnimationID.NPC_DAGONHAI_ATTACK_MAGIC_01;
 			}
 		}
-		logger.onAnimationChanged(event);
-	}
-
-	@Override
-	public void onProjectileMoved(ProjectileMoved event)
-	{
-		logger.onProjectileMoved(event);
-	}
-
-	@Override
-	public void onGraphicsObjectCreated(GraphicsObjectCreated event)
-	{
-		logger.onGraphicsObjectCreated(event);
-	}
-
-	@Override
-	public void onGameObjectSpawned(GameObjectSpawned event)
-	{
-		logger.onGameObjectSpawned(event);
-	}
-
-	@Override
-	public void onGameObjectDespawned(GameObjectDespawned event)
-	{
-		logger.onGameObjectDespawned(event);
-	}
-
-	@Override
-	public void onGroundObjectSpawned(GroundObjectSpawned event)
-	{
-		logger.onGroundObjectSpawned(event);
-	}
-
-	@Override
-	public void onGroundObjectDespawned(GroundObjectDespawned event)
-	{
-		logger.onGroundObjectDespawned(event);
 	}
 
 	@Override
@@ -344,24 +281,22 @@ public class DagonhaiTrio extends Encounter
 		{
 			handleYell((net.runelite.api.NPC) event.getActor(), event.getOverheadText());
 		}
-		logger.onOverheadTextChanged(event);
 	}
 
-	@Override
-	public void onChatMessage(ChatMessage event)
+	private boolean isFightNpcPresent()
 	{
-		logger.onChatMessage(event);
-	}
-
-	@Override
-	public void onVarbitChanged(VarbitChanged event)
-	{
-		logger.onVarbitChanged(event);
-	}
-
-	@Override
-	public void onHitsplatApplied(net.runelite.api.events.HitsplatApplied event)
-	{
-		logger.onHitsplatApplied(event);
+		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
+		if (wv == null)
+		{
+			return fightPresent;
+		}
+		for (net.runelite.api.NPC npc : wv.npcs())
+		{
+			if (FIGHT_IDS.contains(npc.getId()))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 }

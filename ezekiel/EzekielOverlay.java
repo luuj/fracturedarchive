@@ -104,6 +104,11 @@ public class EzekielOverlay extends EncounterOverlay
 			}
 		}
 
+		if (config.ezekielSwordCrossing())
+		{
+			renderSwordCrossing(graphics, wv);
+		}
+
 		if (config.ezekielStarCracks())
 		{
 			for (GraphicsObject g : wv.getGraphicsObjects())
@@ -257,6 +262,120 @@ public class EzekielOverlay extends EncounterOverlay
 				graphics.setFont(font);
 			}
 		}
+	}
+
+
+	/**
+	 * With four swords up, the area where all four of their lanes cross (outlined in the lane
+	 * color), from when their
+	 * directions are known until the first one goes off.
+	 */
+	private void renderSwordCrossing(Graphics2D graphics, WorldView wv)
+	{
+		java.util.Set<Long> crossing = null;
+		int count = 0;
+		for (Map.Entry<NPC, Ezekiel.SwordTrack> entry : encounter.getSwords().entrySet())
+		{
+			Ezekiel.SwordTrack track = entry.getValue();
+			if (!track.hasDirection() || encounter.ticksUntilLaunch(track) <= 0)
+			{
+				continue;
+			}
+			java.util.Set<Long> tiles = laneTiles(wv, entry.getKey(), track);
+			if (tiles.isEmpty())
+			{
+				continue;
+			}
+			count++;
+			if (crossing == null)
+			{
+				crossing = tiles;
+			}
+			else
+			{
+				crossing.retainAll(tiles);
+			}
+		}
+		if (count < 4 || crossing == null || crossing.isEmpty())
+		{
+			return;
+		}
+		Area area = new Area();
+		for (long key : crossing)
+		{
+			LocalPoint lp = LocalPoint.fromScene((int) (key >> 16), (int) (key & 0xFFFF), wv);
+			Polygon poly = lp == null ? null : Perspective.getCanvasTilePoly(client, lp);
+			if (poly != null)
+			{
+				area.add(new Area(poly));
+			}
+		}
+		if (!area.isEmpty())
+		{
+			// Outline only, in the sword lane color
+			graphics.setStroke(new BasicStroke(config.borderWidth()));
+			graphics.setColor(SWORD_BORDER);
+			graphics.draw(area);
+
+			// "X-section" (size 12) on its middle tile
+			long sumX = 0, sumY = 0;
+			for (long key : crossing)
+			{
+				sumX += key >> 16;
+				sumY += key & 0xFFFF;
+			}
+			LocalPoint middle = LocalPoint.fromScene((int) Math.round((double) sumX / crossing.size()),
+				(int) Math.round((double) sumY / crossing.size()), wv);
+			if (middle != null)
+			{
+				java.awt.Font font = graphics.getFont();
+				graphics.setFont(font.deriveFont(12f));
+				Point p = Perspective.getCanvasTextLocation(client, graphics, middle, "X-section", 0);
+				renderText(graphics, p, "X-section", SWORD_BORDER);
+				graphics.setFont(font);
+			}
+		}
+	}
+
+	/** The scene tiles a sword's lane covers (the same stepping as renderLane), as x << 16 | y. */
+	private java.util.Set<Long> laneTiles(WorldView wv, NPC sword, Ezekiel.SwordTrack track)
+	{
+		java.util.Set<Long> tiles = new java.util.HashSet<>();
+		LocalPoint start = sword.getLocalLocation();
+		if (start == null)
+		{
+			return tiles;
+		}
+		NPCComposition composition = sword.getTransformedComposition();
+		int size = composition != null ? Math.max(1, composition.getSize()) : 1;
+		CollisionData[] maps = wv.getCollisionMaps();
+		int[][] flags = maps != null ? maps[wv.getPlane()].getFlags() : null;
+		LocalPoint step = start;
+		boolean reachedFloor = false;
+		for (int i = 0; i <= MAX_LANE_LENGTH; i++)
+		{
+			if (i > 0)
+			{
+				step = step.plus(track.getDx() * Perspective.LOCAL_TILE_SIZE, track.getDy() * Perspective.LOCAL_TILE_SIZE);
+			}
+			boolean blocked = isBlocked(flags, step);
+			if (blocked && reachedFloor || isOutsideScene(step))
+			{
+				break;
+			}
+			reachedFloor |= !blocked;
+			// The footprint is centered on the step (getCanvasTileAreaPoly's convention)
+			int low = -(size - 1) / 2;
+			int high = size / 2;
+			for (int x = low; x <= high; x++)
+			{
+				for (int y = low; y <= high; y++)
+				{
+					tiles.add(((long) (step.getSceneX() + x) << 16) | (step.getSceneY() + y));
+				}
+			}
+		}
+		return tiles;
 	}
 
 	private void renderLane(Graphics2D graphics, WorldView wv, NPC sword, Ezekiel.SwordTrack track)
