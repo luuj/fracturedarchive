@@ -413,6 +413,18 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		keyName = "dreadnothMoveTimer",
+		name = "Movement timer",
+		description = "Before 25% hp: a small 3 tick count under Dreadnoth from each step he takes (he moves every 3 ticks)",
+		position = 6,
+		section = dreadnothSection
+	)
+	default boolean dreadnothMoveTimer()
+	{
+		return true;
+	}
+
 	// Xarth
 
 	@ConfigItem(
@@ -476,6 +488,17 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		keyName = "xarthBurnRemaining",
+		name = "Burn remaining",
+		description = "An info box with the burn damage still to come on you (if no more burns land)",
+		position = 20,
+		section = xarthSection
+	)
+	default boolean xarthBurnRemaining()
+	{
+		return true;
+	}
 	// Dagon'hai Trio
 
 	@ConfigItem(

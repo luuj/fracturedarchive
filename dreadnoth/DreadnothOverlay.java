@@ -81,6 +81,12 @@ public class DreadnothOverlay extends EncounterOverlay
 			renderText(graphics, dreadnoth.getCanvasTextLocation(graphics, text, config.textZ()), text, COOLDOWN_COLOR);
 		}
 
+		if (config.dreadnothMoveTimer() && dreadnoth != null && encounter.getMoveTicks() > 0)
+		{
+			// Before 25%: ticks until his next step, small (size 12) under his counters
+			renderStackedText(graphics, dreadnoth, Integer.toString(encounter.getMoveTicks()), Color.WHITE, 12f);
+		}
+
 		if (config.dreadnothIncoming())
 		{
 			for (Map.Entry<Projectile, LocalPoint> entry : encounter.getIncoming().entrySet())

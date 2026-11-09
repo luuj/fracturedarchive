@@ -67,6 +67,161 @@ public class Xarth extends Encounter
 	private XarthOverlay overlay;
 
 	@Inject
+	private net.runelite.client.ui.overlay.infobox.InfoBoxManager infoBoxManager;
+
+	@Inject
+	private net.runelite.client.game.ItemManager itemManager;
+
+	@Inject
+	private net.runelite.client.plugins.fracturedarchive.FracturedArchivePlugin plugin;
+
+	/** Fire rune, for the burn info box's icon. */
+	private static final int BURN_ICON_ITEM = 554;
+	private BurnInfoBox burnInfoBox;
+
+	@Override
+	public void load()
+	{
+		super.load();
+		burnInfoBox = new BurnInfoBox(itemManager.getImage(BURN_ICON_ITEM), plugin, this, config);
+		infoBoxManager.addInfoBox(burnInfoBox);
+	}
+
+	@Override
+	public void unload()
+	{
+		infoBoxManager.removeInfoBox(burnInfoBox);
+		super.unload();
+		clearBurn();
+		pendingBurn = 0;
+	}
+
+	/*
+	 * Burn on you (hitsplat 74), worked out from the logs: the burns all share one timer. Each
+	 * hitsplat is the stacks (up to 5) and they hit every 4 ticks. Every one of his magic attacks
+	 * that lands on you (even a 0) adds a stack, hits the tick after, and resets the timer to 6
+	 * hits. So what's left is stacks x hits left, if no more land.
+	 */
+	private static final int BURN_HITSPLAT = 74;
+	private static final int BURN_HITS = 6;
+	/** No burn hit for this long: it's gone. */
+	private static final int BURN_TIMEOUT_TICKS = 6;
+	private int burnStacks;
+	private int burnHitsLeft;
+	/** One of his magic attacks landed on you since the last burn hit (resets the timer). */
+	private boolean burnRefresh;
+	/** Burn damage on you this tick, handled at the game tick. */
+	private int pendingBurn;
+	private int lastBurnTick = -1;
+	/** His magic attacks at you in the air, with the tick each lands. */
+	private final java.util.Map<net.runelite.api.Projectile, Integer> myFireballs = new java.util.IdentityHashMap<>();
+	private final Set<net.runelite.api.Projectile> seenFireballs = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
+	/** Burn damage still to come if no more burns land (0 = not burning). */
+	int getBurnRemaining()
+	{
+		return burnStacks * burnHitsLeft;
+	}
+
+	private void clearBurn()
+	{
+		burnStacks = 0;
+		burnHitsLeft = 0;
+		burnRefresh = false;
+		lastBurnTick = -1;
+		myFireballs.clear();
+	}
+
+	@Override
+	public void onHitsplatApplied(net.runelite.api.events.HitsplatApplied event)
+	{
+		if (event.getActor() != client.getLocalPlayer())
+		{
+			return;
+		}
+		net.runelite.api.Hitsplat h = event.getHitsplat();
+		if (h.getHitsplatType() == BURN_HITSPLAT)
+		{
+			pendingBurn += h.getAmount();
+		}
+		burnLog("hitsplat " + h.getAmount() + " type " + h.getHitsplatType() + (h.isMine() ? " (mine)" : ""));
+	}
+
+	@Override
+	public void onChatMessage(net.runelite.api.events.ChatMessage event)
+	{
+		String msg = event.getMessage();
+		if (msg != null && msg.startsWith("Challenge complete: Xarth"))
+		{
+			// Your burn goes out when he dies
+			if (burnStacks > 0)
+			{
+				burnLog("Xarth died, burn cleared (" + getBurnRemaining() + " was shown)");
+			}
+			clearBurn();
+		}
+		if (msg != null && (msg.contains("alight") || msg.toLowerCase().contains("burn")
+			|| msg.toLowerCase().contains("extinguish") || msg.startsWith("Challenge")))
+		{
+			burnLog("chat " + msg);
+		}
+	}
+
+	private void updateBurn()
+	{
+		int tick = client.getTickCount();
+		// His magic attacks landing on you this tick
+		java.util.Iterator<Integer> it = myFireballs.values().iterator();
+		while (it.hasNext())
+		{
+			if (it.next() <= tick)
+			{
+				it.remove();
+				burnRefresh = true;
+				burnLog("magic attack landed on you (burn refresh)");
+			}
+		}
+
+		if (pendingBurn > 0)
+		{
+			int stacks = pendingBurn;
+			pendingBurn = 0;
+			if (lastBurnTick >= 0 && tick - lastBurnTick > BURN_TIMEOUT_TICKS)
+			{
+				burnStacks = 0;
+			}
+			if (burnRefresh || stacks > burnStacks || burnHitsLeft <= 0)
+			{
+				// A new burn: this is its first hit
+				burnHitsLeft = BURN_HITS - 1;
+			}
+			else
+			{
+				burnHitsLeft--;
+			}
+			burnRefresh = false;
+			burnStacks = stacks;
+			lastBurnTick = tick;
+			burnLog("burn " + stacks + " -> " + burnHitsLeft + " hits left, " + getBurnRemaining() + " damage left");
+		}
+		else if (burnStacks > 0 && lastBurnTick >= 0 && tick - lastBurnTick > BURN_TIMEOUT_TICKS)
+		{
+			burnLog("burn ended, " + getBurnRemaining() + " damage was still shown");
+			clearBurn();
+		}
+		else if (burnStacks > 0 && burnHitsLeft <= 0 && tick - lastBurnTick >= 4)
+		{
+			// Its last hit was the one before: done
+			clearBurn();
+		}
+	}
+
+	/** Logging is off (kept as a no-op so it's easy to turn back on). */
+	private void burnLog(String message)
+	{
+	}
+
+	@Inject
 	protected Xarth(FracturedArchiveConfig config)
 	{
 		super(config);
@@ -142,6 +297,7 @@ public class Xarth extends Encounter
 	@Override
 	public void onGameTick(GameTick event)
 	{
+		updateBurn();
 		if (attackTicks > 0 && --attackTicks == 0)
 		{
 			attackAnimation = -1;
@@ -213,6 +369,11 @@ public class Xarth extends Encounter
 	public void onProjectileMoved(net.runelite.api.events.ProjectileMoved event)
 	{
 		net.runelite.api.Projectile p = event.getProjectile();
+		if (p.getId() == FIREBALL && p.getTargetActor() == client.getLocalPlayer() && seenFireballs.add(p))
+		{
+			// His magic attack at you: lands in this many ticks (30 client cycles a tick)
+			myFireballs.put(p, client.getTickCount() + (p.getRemainingCycles() + 29) / 30);
+		}
 		if (!isActive() || !logged.add(p))
 		{
 			return;
@@ -260,9 +421,10 @@ public class Xarth extends Encounter
 		}
 	}
 
-	/** Logging is off (kept as a no-op so it's easy to turn back on). */
+	/** Fight events, logged with the burn logger (to line burns up with his attacks). */
 	private void debug(String message)
 	{
+		burnLog(message);
 	}
 
 	private static String tile(net.runelite.api.coords.WorldPoint p)

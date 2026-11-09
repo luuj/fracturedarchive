@@ -73,6 +73,26 @@ public class Dreadnoth extends Encounter
 	@lombok.Getter
 	private int cooldownTicks;
 
+	/** Before 25% hp he steps a tile every 3 ticks: the tick of his last step (-1 = none). */
+	private static final int MOVE_TICKS = 3;
+	private int lastStepTick = -1;
+	/** He landed from a jump this tick (his tile change then isn't a step). */
+	private boolean jumpLanded;
+	private net.runelite.api.coords.WorldPoint lastTile;
+	/** Below 25% hp (no more movement timer). */
+	private boolean enraged;
+
+	/** Ticks until his next step (0 = not shown). */
+	int getMoveTicks()
+	{
+		if (enraged || jumpTicks > 0 || lastStepTick < 0)
+		{
+			return 0;
+		}
+		int left = MOVE_TICKS - (client.getTickCount() - lastStepTick);
+		return Math.max(left, 0);
+	}
+
 	/** Ticks until Dreadnoth lands from a jump (0 = not jumping). */
 	@Getter
 	private int jumpTicks;
@@ -106,6 +126,9 @@ public class Dreadnoth extends Encounter
 		incoming.clear();
 		rangedShots.clear();
 		jumpTicks = 0;
+		lastStepTick = -1;
+		lastTile = null;
+		enraged = false;
 		glubbed = false;
 		fastJump = false;
 		cooldownTicks = 0;
@@ -128,6 +151,8 @@ public class Dreadnoth extends Encounter
 			jumpTicks = (glubbed ? FAST_JUMP_TICKS : JUMP_TICKS) + 1;
 			fastJump = glubbed;
 			cooldownTicks = 0;
+			// The jump isn't a step: the timer picks up again from his next step after landing
+			lastStepTick = -1;
 		}
 	}
 
@@ -247,7 +272,11 @@ public class Dreadnoth extends Encounter
 		{
 			cooldownTicks--;
 		}
-		if (jumpTicks > 0 && --jumpTicks == 0 && fastJump)
+		if (jumpTicks > 0 && --jumpTicks == 0)
+		{
+			jumpLanded = true;
+		}
+		if (jumpLanded && fastJump)
 		{
 			// In the fast phase his jump has a 4 tick cooldown after he lands. Set during the game
 			// tick, so it's shown as is (no +1).
@@ -255,11 +284,25 @@ public class Dreadnoth extends Encounter
 		}
 
 		// Below 25% hp he jumps fast too, as if he'd said "glub glub"
-		if (!glubbed && boss != null && boss.getHealthScale() > 0 && boss.getHealthRatio() >= 0
+		if (boss != null && boss.getHealthScale() > 0 && boss.getHealthRatio() >= 0
 			&& boss.getHealthRatio() * 4 < boss.getHealthScale())
 		{
 			glubbed = true;
+			enraged = true;
 		}
+
+		// His steps: a one-tile move while he isn't jumping (landing from a jump doesn't count)
+		if (boss != null)
+		{
+			net.runelite.api.coords.WorldPoint tile = boss.getWorldLocation();
+			if (lastTile != null && !tile.equals(lastTile) && jumpTicks == 0 && !jumpLanded
+				&& lastTile.distanceTo2D(tile) <= 1)
+			{
+				lastStepTick = client.getTickCount();
+			}
+			lastTile = tile;
+		}
+		jumpLanded = false;
 
 		// Forget blobs once they've landed
 		incoming.keySet().removeIf(p -> p.getRemainingCycles() <= 0);
