@@ -127,6 +127,18 @@ public interface FracturedArchiveConfig extends Config
 		return 1;
 	}
 
+	@ConfigItem(
+		keyName = "divineReminder",
+		name = "Divine potion reminder",
+		description = "A flashing \"Use Divine Potion\" box above the chat box for 10 ticks when a room's boss hits 0 hp (every boss but the Archive Guardian and Ocellus; all of Bork and his Smorks, all of the Dagon'hai Trio)",
+		position = 3,
+		section = generalSection
+	)
+	default boolean divineReminder()
+	{
+		return true;
+	}
+
 	// Boss targets
 
 	@ConfigItem(

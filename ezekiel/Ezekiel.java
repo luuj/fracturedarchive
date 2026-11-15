@@ -81,6 +81,9 @@ public class Ezekiel extends Encounter
 	@Inject
 	private AutocastPanel autocastPanel;
 
+	@Inject
+	private net.runelite.client.plugins.fracturedarchive.DivinePanel divinePanel;
+
 	@Override
 	public void load()
 	{
@@ -359,6 +362,7 @@ public class Ezekiel extends Encounter
 			case AnimationID.NPC_EZEKIEL_FINALE_DEATH01:
 			case AnimationID.NPC_EZEKIEL_DEATH01:
 				finaleStartTick = -1;
+				divinePanel.ezekielDied();
 				break;
 			default:
 				break;

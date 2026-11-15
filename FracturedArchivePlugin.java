@@ -52,6 +52,9 @@ public class FracturedArchivePlugin extends Plugin
 	private TargetOverlay targetOverlay;
 
 	@Inject
+	private DivinePanel divinePanel;
+
+	@Inject
 	private ArchiveGuardian archiveGuardian;
 
 	@Inject
@@ -98,12 +101,14 @@ public class FracturedArchivePlugin extends Plugin
 
 		encounters.forEach(Encounter::load);
 		overlayManager.add(targetOverlay);
+		overlayManager.add(divinePanel);
 	}
 
 	@Override
 	protected void shutDown()
 	{
 		overlayManager.remove(targetOverlay);
+		overlayManager.remove(divinePanel);
 		if (encounters != null)
 		{
 			encounters.forEach(Encounter::unload);
@@ -136,6 +141,7 @@ public class FracturedArchivePlugin extends Plugin
 	public void onGameTick(GameTick event)
 	{
 		encounters.forEach(e -> e.onGameTick(event));
+		divinePanel.onGameTick();
 	}
 
 	@Subscribe

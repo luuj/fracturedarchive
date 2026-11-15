@@ -1180,14 +1180,17 @@ public class FinalBoss extends Encounter
 	}
 
 	/**
-	 * There are only three orders the orange portals go in, 6 volleys each, as {row, column}
-	 * portal numbers counted out from the corner of the inner walls. The first one says which.
+	 * There are only three orders the orange portals go in, as {row, column} portal numbers
+	 * counted out from the corner of the inner walls. The first one says which. They were 6
+	 * volleys each; the TFA changes (November 2026) cut each quadrant to 5, so the 6th is gone.
 	 */
 	private static final int[][][] PORTAL_SEQUENCES = {
-		{{1, 1}, {3, 1}, {1, 3}, {1, 1}, {2, 2}, {4, 1}},
-		{{2, 2}, {2, 3}, {1, 4}, {2, 2}, {2, 4}, {3, 3}},
-		{{1, 0}, {1, 3}, {1, 5}, {3, 3}, {2, 2}, {3, 0}},
+		{{1, 1}, {3, 1}, {1, 3}, {1, 1}, {2, 2}},
+		{{2, 2}, {2, 3}, {1, 4}, {2, 2}, {2, 4}},
+		{{1, 0}, {1, 3}, {1, 5}, {3, 3}, {2, 2}},
 	};
+	/** Volleys per quadrant. */
+	private static final int PORTAL_VOLLEYS = 5;
 	/** Per quadrant: which sequence it's on and which step it's at. */
 	private final Map<Integer, int[]> portalSequence = new HashMap<>();
 	/** The next crossing, shown early (null = none). */
@@ -1217,7 +1220,7 @@ public class FinalBoss extends Encounter
 
 		// Carry on the sequence this quadrant is on if this is its next step, else work it out again
 		int[] state = portalSequence.get(quadrant);
-		if (state != null && client.getTickCount() - state[2] <= PORTAL_CYCLE + 2 && state[1] + 1 < 6
+		if (state != null && client.getTickCount() - state[2] <= PORTAL_CYCLE + 2 && state[1] + 1 < PORTAL_VOLLEYS
 			&& PORTAL_SEQUENCES[state[0]][state[1] + 1][0] == row && PORTAL_SEQUENCES[state[0]][state[1] + 1][1] == col)
 		{
 			state[1]++;
@@ -1243,7 +1246,7 @@ public class FinalBoss extends Encounter
 		}
 		state[2] = client.getTickCount();
 		portalSequence.put(quadrant, state);
-		if (state[1] + 1 < 6)
+		if (state[1] + 1 < PORTAL_VOLLEYS)
 		{
 			int[] next = PORTAL_SEQUENCES[state[0]][state[1] + 1];
 			nextCrossing = new WorldPoint(slot(next[1], wallX, east), slot(next[0], wallY, north), crossing.getPlane());

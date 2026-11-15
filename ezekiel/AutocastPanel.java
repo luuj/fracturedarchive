@@ -73,9 +73,30 @@ public class AutocastPanel extends OverlayPanel
 		panelComponent.setPreferredSize(new Dimension(150, 0));
 	}
 
+	/** Tick you were seen logged in from (-1 = not logged in), to let things settle after a login. */
+	private int loggedInTick = -1;
+	/** Ticks after logging in before your gear and autocast are trusted (they load in over a moment). */
+	private static final int LOGIN_SETTLE_TICKS = 3;
+
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
+		if (client.getGameState() != net.runelite.api.GameState.LOGGED_IN)
+		{
+			// Logged out, or reconnecting after a disconnect: keep what we knew (the fight, the
+			// staff's autocast) and show nothing until you're back in
+			loggedInTick = -1;
+			return null;
+		}
+		if (loggedInTick < 0)
+		{
+			loggedInTick = client.getTickCount();
+		}
+		if (client.getTickCount() - loggedInTick < LOGIN_SETTLE_TICKS)
+		{
+			return null;
+		}
+
 		if (harmStaffEquipped())
 		{
 			// Remember the staff's autocast for when you swap to another weapon
@@ -84,7 +105,7 @@ public class AutocastPanel extends OverlayPanel
 		}
 
 		String wanted = wantedSpell();
-		if (wanted == null)
+		if (wanted == null && inKnownPlace())
 		{
 			// Out of the rooms: the next fight hasn't started
 			fightStarted = false;
@@ -108,6 +129,12 @@ public class AutocastPanel extends OverlayPanel
 			.rightColor(flashOn ? Color.WHITE : Color.RED)
 			.build());
 		return super.render(graphics);
+	}
+
+	/** You're loaded in somewhere (so being out of the rooms is real, not a reconnect). */
+	private boolean inKnownPlace()
+	{
+		return client.getLocalPlayer() != null && client.getTopLevelWorldView() != null;
 	}
 
 	/** Whether the weapon you're wielding is a harmonised nightmare staff. */
