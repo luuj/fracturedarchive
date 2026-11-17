@@ -55,6 +55,9 @@ public class FracturedArchivePlugin extends Plugin
 	private DivinePanel divinePanel;
 
 	@Inject
+	private AutocastPanel autocastPanel;
+
+	@Inject
 	private HpOverlay hpOverlay;
 
 	@Inject
@@ -105,6 +108,7 @@ public class FracturedArchivePlugin extends Plugin
 		encounters.forEach(Encounter::load);
 		overlayManager.add(targetOverlay);
 		overlayManager.add(divinePanel);
+		overlayManager.add(autocastPanel);
 		overlayManager.add(hpOverlay);
 	}
 
@@ -113,6 +117,7 @@ public class FracturedArchivePlugin extends Plugin
 	{
 		overlayManager.remove(targetOverlay);
 		overlayManager.remove(divinePanel);
+		overlayManager.remove(autocastPanel);
 		overlayManager.remove(hpOverlay);
 		if (encounters != null)
 		{
@@ -214,6 +219,7 @@ public class FracturedArchivePlugin extends Plugin
 	public void onChatMessage(ChatMessage event)
 	{
 		encounters.forEach(e -> e.onChatMessage(event));
+		autocastPanel.onChatMessage(event.getMessage());
 	}
 
 	@Subscribe

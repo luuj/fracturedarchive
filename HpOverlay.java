@@ -21,7 +21,7 @@ import net.runelite.api.gameval.VarbitID;
  * Opponent Information: the amount left, the full amount and the share, for whatever is taking
  * damage right now. "Shield: 540/550 (99%)" in teal while its shield is up (the Archive Guardian
  * until it's broken, and Ocellus for all of phase 1), "HP: 2940/3000 (98%)" in green otherwise.
- * Red while it's within 5% above a phase threshold (see PHASES), back to its
+ * Red while it's within 5% (10% for the Guardian) above a phase threshold (see PHASES), back to its
  * color once past it. The Guardian's shield stays red at 0% until he turns into his hp form, and
  * Ocellus in phase 3 goes back to normal as soon as he says Obliteration/Run for that threshold.
  *
@@ -39,13 +39,14 @@ class HpOverlay extends EncounterOverlay
 {
 	private static final Color HP_COLOR = Color.GREEN;
 	private static final Color SHIELD_COLOR = new Color(0, 190, 170);
-	/** Within this many % above a phase threshold. */
+	/** Within this many % above a phase threshold (10 for the Archive Guardian). */
 	private static final double NEAR_PHASE = 5;
+	private static final double GUARDIAN_NEAR_PHASE = 10;
 	private static final Color NEAR_PHASE_COLOR = Color.RED;
 
 	/**
 	 * The % each form changes phase at (of the number shown: the Guardian's shield and then his hp,
-	 * Ocellus's shield in phase 1). Red within 5% above one, back to normal once past it.
+	 * Ocellus's shield in phase 1). Red within 5% above one (10% for the Guardian), back to normal once past it.
 	 */
 	private static final Map<Integer, double[]> PHASES = Map.of(
 		NpcID.TFA_GUARDIAN, new double[]{0},
@@ -95,7 +96,7 @@ class HpOverlay extends EncounterOverlay
 		private int current = -1;
 		private int max = -1;
 		private boolean shield;
-		/** Within 5% above one of its phase thresholds. */
+		/** Within 5% (10% for the Guardian) above one of its phase thresholds. */
 		private boolean nearPhase;
 		/** Ocellus phase 3: thresholds he's done his Obliteration for (no more red for those). */
 		private final java.util.Set<Double> done = new java.util.HashSet<>();
@@ -239,6 +240,7 @@ class HpOverlay extends EncounterOverlay
 		{
 			return false;
 		}
+		double near = form == NpcID.TFA_GUARDIAN || form == NpcID.TFA_GUARDIAN_UNSHIELDED ? GUARDIAN_NEAR_PHASE : NEAR_PHASE;
 		for (double phase : phases)
 		{
 			if (done.contains(phase))
@@ -247,7 +249,7 @@ class HpOverlay extends EncounterOverlay
 			}
 			// A shield breaking at 0% stays red at 0 (until he changes into his hp form)
 			boolean past = phase == 0 ? percent < 0 : percent <= phase;
-			if (!past && percent - phase <= NEAR_PHASE)
+			if (!past && percent - phase <= near)
 			{
 				return true;
 			}
