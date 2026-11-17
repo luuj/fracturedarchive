@@ -28,7 +28,6 @@ import net.runelite.client.plugins.fracturedarchive.FracturedArchiveConfig;
 /**
  * Archive Guardian. Always the first encounter.
  */
-@lombok.extern.slf4j.Slf4j
 @Singleton
 public class ArchiveGuardian extends Encounter
 {
@@ -156,40 +155,9 @@ public class ArchiveGuardian extends Encounter
 		return color != null ? color : Color.WHITE;
 	}
 
-	/** Temporary logger for the flame counter: "[AG flame tN] ...". */
-	private void agLog(String message)
-	{
-		log.info("[AG flame t{}] {} | counter {} anim {} npc {}", client.getTickCount(), message, ticksRemaining,
-			counterAnimation, counterNpc == null ? "-" : counterNpc.getIndex());
-	}
-
-	@Override
-	public void onNpcSpawned(net.runelite.api.events.NpcSpawned event)
-	{
-		super.onNpcSpawned(event);
-		if (bossIds().contains(event.getNpc().getId()))
-		{
-			agLog("spawn " + event.getNpc().getId() + " idx " + event.getNpc().getIndex() + " anim " + event.getNpc().getAnimation());
-		}
-	}
-
-	@Override
-	public void onNpcDespawned(net.runelite.api.events.NpcDespawned event)
-	{
-		if (bossIds().contains(event.getNpc().getId()))
-		{
-			agLog("despawn " + event.getNpc().getId() + " idx " + event.getNpc().getIndex());
-		}
-		super.onNpcDespawned(event);
-	}
-
 	@Override
 	public void onAnimationChanged(AnimationChanged event)
 	{
-		if (event.getActor() instanceof NPC && bossIds().contains(((NPC) event.getActor()).getId()))
-		{
-			agLog("anim " + event.getActor().getAnimation() + " idx " + ((NPC) event.getActor()).getIndex());
-		}
 		if (event.getActor() instanceof NPC)
 		{
 			startCounter((NPC) event.getActor());
@@ -199,8 +167,6 @@ public class ArchiveGuardian extends Encounter
 	@Override
 	public void onNpcChanged(NpcChanged event)
 	{
-		if (bossIds().contains(event.getNpc().getId()) || (event.getOld() != null && bossIds().contains(event.getOld().getId())))
-		agLog("changed " + (event.getOld() == null ? -1 : event.getOld().getId()) + " -> " + event.getNpc().getId() + " idx " + event.getNpc().getIndex() + " anim " + event.getNpc().getAnimation());
 		super.onNpcChanged(event);
 		// An attack animation can start at the same moment the Guardian changes form
 		startCounter(event.getNpc());
@@ -237,7 +203,6 @@ public class ArchiveGuardian extends Encounter
 			// The flame (14754, 5 ticks after 14753 in the last phase) playing again while its own
 			// count is up, as when his shield breaks mid-charge: keep counting rather than start over.
 			// 14753 -> 14754 still restarts it, as before.
-			agLog("flame replay ignored");
 			return;
 		}
 		// Starts as the beam; switches to the mushroom attack if mushrooms appear (see onGameObjectSpawned)
@@ -264,7 +229,6 @@ public class ArchiveGuardian extends Encounter
 		counterNpc = npc;
 		counterAnimation = animation;
 		ticksRemaining = ticks + 1;
-		agLog("counter started " + animation + " for " + ticks);
 	}
 
 	/** Mushrooms just after the special mean it was the mushroom attack, not the beam. */
@@ -286,10 +250,6 @@ public class ArchiveGuardian extends Encounter
 
 	private void clearCounter()
 	{
-		if (ticksRemaining > 0)
-		{
-			agLog("counter cleared");
-		}
 		counterNpc = null;
 		ticksRemaining = 0;
 		counterAnimation = -1;

@@ -49,9 +49,6 @@ public class DivinePanel extends OverlayPanel
 
 	/** Rooms whose reminder has gone off (until their bosses are gone or back above 0 hp). */
 	private final Set<Integer> fired = new HashSet<>();
-	/** Ticks in a row each room's bosses have all been at 0 hp: it has to hold for DEAD_TICKS (a one-tick blip doesn't count). */
-	private static final int DEAD_TICKS = 2;
-	private final int[] deadTicks = new int[ROOMS.size()];
 	/** Shown until this tick (-1 = not shown). */
 	private int showUntil = -1;
 
@@ -96,9 +93,8 @@ public class DivinePanel extends OverlayPanel
 			{
 				// Left the room, or a boss is back above 0 hp: it can go off again
 				fired.remove(i);
-				deadTicks[i] = 0;
 			}
-			else if (++deadTicks[i] >= DEAD_TICKS && fired.add(i))
+			else if (fired.add(i))
 			{
 				showUntil = tick + SHOW_TICKS - 1;
 			}

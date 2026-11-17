@@ -244,6 +244,12 @@ public class FinalBossOverlay extends EncounterOverlay
 			String text = Integer.toString(unleash);
 			renderText(graphics, ocellus.getCanvasTextLocation(graphics, text, config.textZ()), text, FinalBoss.SPECIAL_COLOR);
 		}
+		else if (config.ocellusTeleportCounter() && ocellus != null && encounter.getCenterTeleportTicks() > 0)
+		{
+			// Phase 1: he's teleported into the middle, counting down to his first charge there
+			String text = Integer.toString(encounter.getCenterTeleportTicks());
+			renderText(graphics, ocellus.getCanvasTextLocation(graphics, text, config.textZ()), text, FinalBoss.OBLITERATION_COLOR);
+		}
 		else if (config.ocellusAttackCounter() && ocellus != null && encounter.getAttackTicks() > 0)
 		{
 			String text = Integer.toString(encounter.getAttackTicks());

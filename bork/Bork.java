@@ -560,12 +560,6 @@ public class Bork extends Encounter
 	public void onGraphicsObjectCreated(GraphicsObjectCreated event)
 	{
 		GraphicsObject g = event.getGraphicsObject();
-		if (isActive() && g.getId() == STOMP_GRAPHIC)
-		{
-			// The stomp's hit tiles
-			WorldPoint wp = WorldPoint.fromLocal(client, g.getLocation());
-			debug("gfx " + g.getId() + " at " + wp.getX() + "," + wp.getY());
-		}
 		if (event.getGraphicsObject().getId() == SMORK_FIRE)
 		{
 			fires.add(event.getGraphicsObject());
@@ -650,11 +644,6 @@ public class Bork extends Encounter
 			return "nobody";
 		}
 		return (actor instanceof NPC ? "npc " + ((NPC) actor).getId() : actor.getName()) + "@" + tile(actor);
-	}
-
-	private void debug(String message)
-	{
-		// Logging off
 	}
 
 	private void clearStun()

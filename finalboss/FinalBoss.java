@@ -224,6 +224,7 @@ public class FinalBoss extends Encounter
 		tendrilStarts.clear();
 		tendrilChargeTick = -100;
 		inCenter = false;
+		centerTeleportTick = -1;
 		outerTendrils.clear();
 		lastShotTick = -10;
 		countedShots.clear();
@@ -291,22 +292,11 @@ public class FinalBoss extends Encounter
 
 	private void trackPortal(NPC npc)
 	{
-		if (isActive())
-		{
-			StringBuilder spots = new StringBuilder();
-			for (net.runelite.api.ActorSpotAnim a : npc.getSpotAnims())
-			{
-				spots.append(' ').append(a.getId());
-			}
-			debug("npc " + npc.getId() + " (" + npc.getName() + ") at " + tile(npc.getWorldLocation())
-				+ " anim " + npc.getAnimation() + " spotanims" + spots);
-		}
 		for (PortalType type : PortalType.values())
 		{
 			if (npc.getId() == type.npcId)
 			{
 				portals.add(npc);
-				debug("portal " + type + " (" + npc.getId() + ") at " + tile(npc.getWorldLocation()) + " facing " + npc.getOrientation());
 			}
 		}
 	}
@@ -393,7 +383,6 @@ public class FinalBoss extends Encounter
 					{
 						deflectRanged = RANGED_DEFLECT_START.contains(id);
 						deflectEndTick = client.getTickCount() + (deflectRanged ? RANGED_DEFLECT_TICKS : MELEE_DEFLECT_TICKS);
-						debug("deflect " + (deflectRanged ? "ranged" : "melee") + " (" + id + ")");
 					}
 				}
 			}
@@ -433,6 +422,27 @@ public class FinalBoss extends Encounter
 	 * attack in the corners uses the same tendril graphics, so only count them here.
 	 */
 	private boolean inCenter;
+
+	/**
+	 * Phase 1: his teleport into the middle. From the logs (26 of 26), he appears there 4 ticks
+	 * after he starts vanishing from his corner. Counted 5 to 1 from that animation, in purple,
+	 * so 1 is the tick he appears.
+	 */
+	private static final int CENTER_TELEPORT_TICKS = 5;
+	private int centerTeleportTick = -1;
+	/** How long after his "will disappear" line the teleport to transform can come (2 in the logs). */
+	private static final int TRANSFORM_LINE_TICKS = 12;
+	private int transformLineTick = -100;
+
+	/** Ticks left on the teleport-to-the-middle countdown (0 = none). */
+	int getCenterTeleportTicks()
+	{
+		if (centerTeleportTick < 0)
+		{
+			return 0;
+		}
+		return Math.max(0, CENTER_TELEPORT_TICKS - (client.getTickCount() - centerTeleportTick));
+	}
 
 	/**
 	 * In the corners his slow ground attack sends out 7 tendrils one after another, 2 ticks
@@ -752,16 +762,6 @@ public class FinalBoss extends Encounter
 		{
 			voidChainHit();
 		}
-		if (chainNextHitTick >= 0)
-		{
-			// Every warned player's tile each tick, to work out which tick each explosion aims at
-			StringBuilder sb = new StringBuilder("void chain (hit " + (chainHits + 1) + " in " + getChainTicks() + "):");
-			for (net.runelite.api.Player player : chainTargets)
-			{
-				sb.append(' ').append(player.getName()).append('@').append(tile(player.getWorldLocation()));
-			}
-			debug(sb.toString());
-		}
 	}
 
 	private void voidChainHit()
@@ -805,7 +805,7 @@ public class FinalBoss extends Encounter
 		java.util.regex.Pattern.compile("obliteration|\\brun\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
 
 	/** Ticks left on Obliteration's countdown (0 = none). */
-	int getObliterationTicks()
+	public int getObliterationTicks()
 	{
 		if (obliterationEndTick < 0)
 		{
@@ -1015,11 +1015,15 @@ public class FinalBoss extends Encounter
 	private void checkObliteration(String text)
 	{
 		checkOrangeSpecial(text);
+		if (text != null && text.toLowerCase().contains("will disappear"))
+		{
+			// What he says before teleporting to the middle to transform into phase 2
+			transformLineTick = client.getTickCount();
+		}
 		if (text != null && OBLITERATION_PHRASES.matcher(text).find()
 			&& getObliterationTicks() == 0)
 		{
 			obliterationEndTick = client.getTickCount() + OBLITERATION_TICKS;
-			debug("obliteration: counting " + OBLITERATION_TICKS + " ticks");
 		}
 	}
 
@@ -1164,7 +1168,6 @@ public class FinalBoss extends Encounter
 		}
 		if (!found.isEmpty() && !found.equals(orangeCrossings))
 		{
-			debug("portals lit " + (north ? "N" : "S") + (east ? "E" : "W") + ": orange crossing " + tile(found.get(0)));
 		}
 		if (!found.isEmpty())
 		{
@@ -1241,7 +1244,6 @@ public class FinalBoss extends Encounter
 		if (state == null)
 		{
 			portalSequence.remove(quadrant);
-			debug("portal sequence: step " + row + "," + col + " not recognised");
 			return;
 		}
 		state[2] = client.getTickCount();
@@ -1251,7 +1253,6 @@ public class FinalBoss extends Encounter
 			int[] next = PORTAL_SEQUENCES[state[0]][state[1] + 1];
 			nextCrossing = new WorldPoint(slot(next[1], wallX, east), slot(next[0], wallY, north), crossing.getPlane());
 		}
-		debug("portal sequence " + "ABC".charAt(state[0]) + " step " + (state[1] + 1) + (nextCrossing != null ? ", next " + tile(nextCrossing) : ", last"));
 	}
 
 	private static int quadrant(boolean east, boolean north)
@@ -1285,126 +1286,6 @@ public class FinalBoss extends Encounter
 	java.util.List<WorldPoint> getOrangeCrossings()
 	{
 		return orangeCrossings;
-	}
-
-	/** Last animation seen on each animated piece of scenery, to record only changes. */
-	private final Map<Long, Integer> sceneryAnimations = new HashMap<>();
-
-	/** Ocellus's own effect IDs, so players' spell effects aren't logged. */
-	private static final int OCELLUS_VFX_MIN = 4228;
-	private static final int OCELLUS_VFX_MAX = 4400;
-	/** Effects already showing on each actor, so each is logged once when it appears. */
-	private final Map<net.runelite.api.Actor, Set<Integer>> shownSpotAnims = new java.util.WeakHashMap<>();
-
-	/**
-	 * Records (to the log file) Ocellus effects that appear on any player or NPC: the soul
-	 * fragments and the deflect show up this way rather than as graphics on the floor.
-	 */
-	private void recordSpotAnims()
-	{
-		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
-		if (wv == null)
-		{
-			return;
-		}
-		java.util.List<net.runelite.api.Actor> actors = new java.util.ArrayList<>();
-		wv.players().forEach(actors::add);
-		wv.npcs().forEach(actors::add);
-		for (net.runelite.api.Actor actor : actors)
-		{
-			Set<Integer> now = new java.util.HashSet<>();
-			for (net.runelite.api.ActorSpotAnim spotAnim : actor.getSpotAnims())
-			{
-				if (spotAnim.getId() >= OCELLUS_VFX_MIN && spotAnim.getId() <= OCELLUS_VFX_MAX)
-				{
-					now.add(spotAnim.getId());
-				}
-			}
-			Set<Integer> before = shownSpotAnims.getOrDefault(actor, Set.of());
-			for (int id : now)
-			{
-				if (!before.contains(id))
-				{
-					String who = actor instanceof NPC ? "npc " + ((NPC) actor).getId() + " (" + actor.getName() + ")" : actor.getName();
-					debug("spotanim " + id + " on " + who + " at " + tile(actor.getWorldLocation()));
-				}
-			}
-			if (now.isEmpty())
-			{
-				shownSpotAnims.remove(actor);
-			}
-			else
-			{
-				shownSpotAnims.put(actor, now);
-			}
-		}
-	}
-
-	/**
-	 * Records (to the log file) any wall or floor scenery near you that starts a new animation
-	 * during the fight. Used to find which portals turn orange in phase 2.
-	 */
-	private void recordSceneryAnimations()
-	{
-		if (!isActive() || boss.getId() != NpcID.TFA_OCELLUS_P2)
-		{
-			sceneryAnimations.clear();
-			return;
-		}
-		net.runelite.api.WorldView wv = client.getTopLevelWorldView();
-		net.runelite.api.Player me = client.getLocalPlayer();
-		if (wv == null || me == null || me.getLocalLocation() == null)
-		{
-			return;
-		}
-		net.runelite.api.Tile[][] tiles = wv.getScene().getTiles()[wv.getPlane()];
-		int cx = me.getLocalLocation().getSceneX();
-		int cy = me.getLocalLocation().getSceneY();
-		for (int x = Math.max(0, cx - 20); x <= Math.min(tiles.length - 1, cx + 20); x++)
-		{
-			for (int y = Math.max(0, cy - 20); y <= Math.min(tiles[x].length - 1, cy + 20); y++)
-			{
-				net.runelite.api.Tile tile = tiles[x][y];
-				if (tile == null)
-				{
-					continue;
-				}
-				for (GameObject o : tile.getGameObjects())
-				{
-					if (o != null)
-					{
-						recordAnimation(o, o.getRenderable(), "object");
-					}
-				}
-				net.runelite.api.WallObject wall = tile.getWallObject();
-				if (wall != null)
-				{
-					recordAnimation(wall, wall.getRenderable1(), "wall");
-					recordAnimation(wall, wall.getRenderable2(), "wall2");
-				}
-				net.runelite.api.DecorativeObject deco = tile.getDecorativeObject();
-				if (deco != null)
-				{
-					recordAnimation(deco, deco.getRenderable(), "deco");
-				}
-			}
-		}
-	}
-
-	private void recordAnimation(TileObject o, net.runelite.api.Renderable r, String kind)
-	{
-		if (!(r instanceof net.runelite.api.DynamicObject))
-		{
-			return;
-		}
-		net.runelite.api.Animation a = ((net.runelite.api.DynamicObject) r).getAnimation();
-		int anim = a == null ? -1 : a.getId();
-		long key = o.getHash() * 3 + (kind.equals("wall2") ? 1 : 0);
-		Integer before = sceneryAnimations.put(key, anim);
-		if (before == null || before != anim)
-		{
-			debug(kind + " " + o.getId() + " anim " + anim + " at " + tile(o.getWorldLocation()));
-		}
 	}
 
 	/** Ticks left on the counter (0 = none). */
@@ -1451,15 +1332,27 @@ public class FinalBoss extends Encounter
 		}
 
 		int animation = event.getActor().getAnimation();
-		debug("anim " + animation);
 
+		if (animation == AnimationID.NPC_OCELLUS_PHASE1_TELEPORT_OUT)
+		{
+			// He's starting to vanish from his corner: count down to him appearing in the middle
+			// (4 ticks later, every time in the logs). Not when he's going there to transform into
+			// phase 2: he says "You... will disappear..." just before that one (9 of 9 in the logs).
+			int tick = client.getTickCount();
+			boolean transforming = tick >= transformLineTick && tick - transformLineTick <= TRANSFORM_LINE_TICKS;
+			centerTeleportTick = transforming ? -1 : tick;
+		}
 		if (animation == AnimationID.NPC_OCELLUS_PHASE1_TELEPORT_IN)
 		{
 			inCenter = true;
 		}
 		else if (animation == AnimationID.NPC_OCELLUS_PHASE1_EXPEND
-			|| animation == AnimationID.NPC_OCELLUS_PHASE1_TELEPORT_OUT
 			|| animation == AnimationID.NPC_OCELLUS_PHASE1_TRANSFORMATION)
+		{
+			inCenter = false;
+			centerTeleportTick = -1;
+		}
+		if (animation == AnimationID.NPC_OCELLUS_PHASE1_TELEPORT_OUT)
 		{
 			inCenter = false;
 		}
@@ -1688,10 +1581,6 @@ public class FinalBoss extends Encounter
 			}
 		}
 
-		if (isActive())
-		{
-			debug("gfx " + event.getGraphicsObject().getId() + " at " + tile(WorldPoint.fromLocal(client, event.getGraphicsObject().getLocation())));
-		}
 	}
 
 	@Override
@@ -1701,10 +1590,6 @@ public class FinalBoss extends Encounter
 		if (isActive() && loggedProjectiles.add(p))
 		{
 			checkPhase1Projectile(p);
-			debug("projectile " + p.getId() + " from " + tile(p.getSourcePoint())
-				+ (p.getSourceActor() != null ? " (" + p.getSourceActor().getName() + ")" : "")
-				+ " to " + (p.getTargetActor() != null ? p.getTargetActor().getName() : tile(p.getTargetPoint()))
-				+ ", " + (p.getRemainingCycles() + 29) / 30 + " ticks");
 		}
 	}
 
@@ -1725,7 +1610,6 @@ public class FinalBoss extends Encounter
 		// Record what Ocellus (or anything near him) says, e.g. "insolence" or "untether"
 		if (isActive() && event.getActor() != null)
 		{
-			debug("says (" + event.getActor().getName() + "): " + event.getOverheadText());
 			if (event.getActor() == boss)
 			{
 				checkObliteration(event.getOverheadText());
@@ -1743,7 +1627,6 @@ public class FinalBoss extends Encounter
 		if (isActive() && (event.getType() == net.runelite.api.ChatMessageType.NPC_SAY
 			|| event.getType() == net.runelite.api.ChatMessageType.GAMEMESSAGE))
 		{
-			debug("chat " + event.getType() + " (" + event.getName() + "): " + event.getMessage());
 			if (event.getName() != null && event.getName().toLowerCase().contains("ocellus"))
 			{
 				checkObliteration(event.getMessage());
@@ -1793,10 +1676,6 @@ public class FinalBoss extends Encounter
 		{
 			dangerObjects.put(o.getLocalLocation(), o);
 		}
-		if (isActive())
-		{
-			debug("object " + o.getId() + " at " + tile(o.getWorldLocation()));
-		}
 	}
 
 	private void removed(TileObject o)
@@ -1833,10 +1712,26 @@ public class FinalBoss extends Encounter
 	private WorldPoint bandosCenser;
 	private boolean portalPhaseSeen;
 
+	/** Object IDs already checked that aren't the censer (and can't turn into it), so each is only looked up once. */
+	private final Set<Integer> notCenserIds = new java.util.HashSet<>();
+
 	private void checkCenser(GameObject o)
 	{
-		net.runelite.api.ObjectComposition comp = client.getObjectDefinition(o.getId());
-		if (comp != null && comp.getImpostorIds() != null)
+		// Every object in the game comes through here as scenes load, so the name lookup is only
+		// done the first time an ID is seen
+		int id = o.getId();
+		if (notCenserIds.contains(id))
+		{
+			return;
+		}
+		net.runelite.api.ObjectComposition comp = client.getObjectDefinition(id);
+		if (comp == null)
+		{
+			return;
+		}
+		// An object that changes what it shows as has to be looked at every time
+		boolean changes = comp.getImpostorIds() != null;
+		if (changes)
 		{
 			net.runelite.api.ObjectComposition impostor = comp.getImpostor();
 			if (impostor != null)
@@ -1844,8 +1739,9 @@ public class FinalBoss extends Encounter
 				comp = impostor;
 			}
 		}
-		String name = comp != null ? comp.getName() : null;
-		if (name != null && name.toLowerCase().contains("bandos") && name.toLowerCase().contains("censer"))
+		String name = comp.getName();
+		String lower = name == null ? "" : name.toLowerCase();
+		if (lower.contains("bandos") && lower.contains("censer"))
 		{
 			if (!o.getWorldLocation().equals(bandosCenser))
 			{
@@ -1853,6 +1749,10 @@ public class FinalBoss extends Encounter
 				portalPhaseSeen = false;
 			}
 			bandosCenser = o.getWorldLocation();
+		}
+		else if (!changes)
+		{
+			notCenserIds.add(id);
 		}
 	}
 
@@ -1887,15 +1787,5 @@ public class FinalBoss extends Encounter
 			spots.add(new WorldPoint(baseX + o[0], baseY + o[1], at.getPlane()));
 		}
 		return spots;
-	}
-
-	/** Logging is off (kept as a no-op so it's easy to turn back on). */
-	private void debug(String message)
-	{
-	}
-
-	private static String tile(WorldPoint p)
-	{
-		return p == null ? "?" : p.getX() + "," + p.getY();
 	}
 }

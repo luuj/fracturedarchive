@@ -28,6 +28,10 @@ public abstract class EncounterOverlay extends Overlay
 	@Inject
 	protected Client client;
 
+	/** The border stroke, kept between frames (remade only when the width setting changes). */
+	private BasicStroke stroke;
+	private int strokeWidth = -1;
+
 	protected EncounterOverlay(FracturedArchiveConfig config)
 	{
 		this.config = config;
@@ -79,7 +83,12 @@ public abstract class EncounterOverlay extends Overlay
 		if (border != null)
 		{
 			graphics.setColor(border);
-			graphics.setStroke(new BasicStroke(borderWidth));
+			if (stroke == null || strokeWidth != borderWidth)
+			{
+				stroke = new BasicStroke(borderWidth);
+				strokeWidth = borderWidth;
+			}
+			graphics.setStroke(stroke);
 			graphics.draw(poly);
 		}
 	}

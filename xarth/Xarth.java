@@ -144,7 +144,6 @@ public class Xarth extends Encounter
 		{
 			pendingBurn += h.getAmount();
 		}
-		burnLog("hitsplat " + h.getAmount() + " type " + h.getHitsplatType() + (h.isMine() ? " (mine)" : ""));
 	}
 
 	@Override
@@ -154,16 +153,7 @@ public class Xarth extends Encounter
 		if (msg != null && msg.startsWith("Challenge complete: Xarth"))
 		{
 			// Your burn goes out when he dies
-			if (burnStacks > 0)
-			{
-				burnLog("Xarth died, burn cleared (" + getBurnRemaining() + " was shown)");
-			}
 			clearBurn();
-		}
-		if (msg != null && (msg.contains("alight") || msg.toLowerCase().contains("burn")
-			|| msg.toLowerCase().contains("extinguish") || msg.startsWith("Challenge")))
-		{
-			burnLog("chat " + msg);
 		}
 	}
 
@@ -178,7 +168,6 @@ public class Xarth extends Encounter
 			{
 				it.remove();
 				burnRefresh = true;
-				burnLog("magic attack landed on you (burn refresh)");
 			}
 		}
 
@@ -202,11 +191,9 @@ public class Xarth extends Encounter
 			burnRefresh = false;
 			burnStacks = stacks;
 			lastBurnTick = tick;
-			burnLog("burn " + stacks + " -> " + burnHitsLeft + " hits left, " + getBurnRemaining() + " damage left");
 		}
 		else if (burnStacks > 0 && lastBurnTick >= 0 && tick - lastBurnTick > BURN_TIMEOUT_TICKS)
 		{
-			burnLog("burn ended, " + getBurnRemaining() + " damage was still shown");
 			clearBurn();
 		}
 		else if (burnStacks > 0 && burnHitsLeft <= 0 && tick - lastBurnTick >= 4)
@@ -214,11 +201,6 @@ public class Xarth extends Encounter
 			// Its last hit was the one before: done
 			clearBurn();
 		}
-	}
-
-	/** Logging is off (kept as a no-op so it's easy to turn back on). */
-	private void burnLog(String message)
-	{
 	}
 
 	@Inject
@@ -261,7 +243,6 @@ public class Xarth extends Encounter
 		}
 
 		int animation = event.getActor().getAnimation();
-		debug("anim " + animation);
 		if (animation == AnimationID.XARTH_ATTACK_MELEE_01
 			|| animation == AnimationID.XARTH_ATTACK_MAGIC_01
 			|| animation == AnimationID.XARTH_ATTACK_RANGED_01
@@ -378,9 +359,6 @@ public class Xarth extends Encounter
 		{
 			return;
 		}
-		debug("projectile " + p.getId() + " from " + who(p.getSourceActor()) + " " + tile(p.getSourcePoint())
-			+ " to " + (p.getTargetActor() != null ? who(p.getTargetActor()) : tile(p.getTargetPoint()))
-			+ ", " + (p.getRemainingCycles() + 29) / 30 + " ticks");
 		// 4034 is also his normal magic attack at a player; the corpse ones are aimed at a tile
 		if (p.getId() == FIREBALL && p.getTargetActor() == null && p.getTargetPoint() != null)
 		{
@@ -397,16 +375,6 @@ public class Xarth extends Encounter
 	}
 
 	@Override
-	public void onGraphicsObjectCreated(net.runelite.api.events.GraphicsObjectCreated event)
-	{
-		if (isActive())
-		{
-			net.runelite.api.GraphicsObject g = event.getGraphicsObject();
-			debug("gfx " + g.getId() + " at " + tile(net.runelite.api.coords.WorldPoint.fromLocal(client, g.getLocation())));
-		}
-	}
-
-	@Override
 	public void onNpcSpawned(net.runelite.api.events.NpcSpawned event)
 	{
 		super.onNpcSpawned(event);
@@ -415,30 +383,6 @@ public class Xarth extends Encounter
 		{
 			corpseSpawnTicks.put(npc, client.getTickCount());
 		}
-		if (isActive())
-		{
-			debug("npc " + npc.getId() + " (" + npc.getName() + ") at " + tile(npc.getWorldLocation()));
-		}
-	}
-
-	/** Fight events, logged with the burn logger (to line burns up with his attacks). */
-	private void debug(String message)
-	{
-		burnLog(message);
-	}
-
-	private static String tile(net.runelite.api.coords.WorldPoint p)
-	{
-		return p == null ? "?" : p.getX() + "," + p.getY();
-	}
-
-	private static String who(net.runelite.api.Actor a)
-	{
-		if (a == null)
-		{
-			return "nobody";
-		}
-		return (a instanceof NPC ? "npc " + ((NPC) a).getId() : a.getName()) + "@" + tile(a.getWorldLocation());
 	}
 
 	Color getAttackColor()

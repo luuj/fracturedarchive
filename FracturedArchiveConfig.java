@@ -139,6 +139,18 @@ public interface FracturedArchiveConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		keyName = "bossHp",
+		name = "Boss hp",
+		description = "A small hp over every boss, like Opponent Information: \"HP: 2940/3000 (98%)\" in green, or \"Shield: 540/550 (99%)\" in teal while its shield is up (Archive Guardian, Ocellus phase 1). Red within 5% above a phase threshold",
+		position = 4,
+		section = generalSection
+	)
+	default boolean bossHp()
+	{
+		return true;
+	}
+
 	// Boss targets
 
 	@ConfigItem(
@@ -741,6 +753,18 @@ public interface FracturedArchiveConfig extends Config
 		section = finalbossSection
 	)
 	default boolean ocellusObliterationCounter()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ocellusTeleportCounter",
+		name = "Teleport counter",
+		description = "Phase 1: when he starts teleporting to the middle, count down 5 ticks to him appearing there (in purple). Not when he goes there to transform into phase 2",
+		position = 4,
+		section = finalbossSection
+	)
+	default boolean ocellusTeleportCounter()
 	{
 		return true;
 	}

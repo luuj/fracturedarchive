@@ -78,6 +78,11 @@ public class AutocastPanel extends OverlayPanel
 	/** Ticks after logging in before your gear and autocast are trusted (they load in over a moment). */
 	private static final int LOGIN_SETTLE_TICKS = 3;
 
+	/** What to show, worked out once a tick (not every frame): the surge wanted and the staff's autocast, or null to hide. */
+	private String shownWanted;
+	private String shownSpell;
+	private int updatedTick = -1;
+
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
@@ -86,15 +91,46 @@ public class AutocastPanel extends OverlayPanel
 			// Logged out, or reconnecting after a disconnect: keep what we knew (the fight, the
 			// staff's autocast) and show nothing until you're back in
 			loggedInTick = -1;
+			shownWanted = null;
+			updatedTick = -1;
 			return null;
 		}
+		int tick = client.getTickCount();
+		if (tick != updatedTick)
+		{
+			updatedTick = tick;
+			update(tick);
+		}
+		if (shownWanted == null)
+		{
+			return null;
+		}
+
+		// Flash: red background for half a second, normal for half a second
+		boolean flashOn = (System.currentTimeMillis() / 500) % 2 == 0;
+		panelComponent.setBackgroundColor(flashOn ? FLASH_BACKGROUND
+			: net.runelite.client.ui.overlay.components.ComponentConstants.STANDARD_BACKGROUND_COLOR);
+		panelComponent.getChildren().add(TitleComponent.builder().text("Autocast " + shownWanted)
+			.color(flashOn ? Color.WHITE : Color.RED).build());
+		panelComponent.getChildren().add(LineComponent.builder()
+			.left("Staff:")
+			.right(shownSpell)
+			.rightColor(flashOn ? Color.WHITE : Color.RED)
+			.build());
+		return super.render(graphics);
+	}
+
+	/** Works out whether the reminder shows this tick. */
+	private void update(int tick)
+	{
+		shownWanted = null;
 		if (loggedInTick < 0)
 		{
-			loggedInTick = client.getTickCount();
+			loggedInTick = tick;
 		}
-		if (client.getTickCount() - loggedInTick < LOGIN_SETTLE_TICKS)
+		if (tick - loggedInTick < LOGIN_SETTLE_TICKS)
 		{
-			return null;
+			return;
 		}
 
 		if (harmStaffEquipped())
@@ -114,21 +150,10 @@ public class AutocastPanel extends OverlayPanel
 		if (wanted == null || fightStarted || spell == null || client.getVarbitValue(VarbitID.SPELLBOOK) != STANDARD_SPELLBOOK
 			|| wanted.equalsIgnoreCase(spell))
 		{
-			return null;
+			return;
 		}
-
-		// Flash: red background for half a second, normal for half a second
-		boolean flashOn = (System.currentTimeMillis() / 500) % 2 == 0;
-		panelComponent.setBackgroundColor(flashOn ? FLASH_BACKGROUND
-			: net.runelite.client.ui.overlay.components.ComponentConstants.STANDARD_BACKGROUND_COLOR);
-		panelComponent.getChildren().add(TitleComponent.builder().text("Autocast " + wanted)
-			.color(flashOn ? Color.WHITE : Color.RED).build());
-		panelComponent.getChildren().add(LineComponent.builder()
-			.left("Staff:")
-			.right(spell)
-			.rightColor(flashOn ? Color.WHITE : Color.RED)
-			.build());
-		return super.render(graphics);
+		shownWanted = wanted;
+		shownSpell = spell;
 	}
 
 	/** You're loaded in somewhere (so being out of the rooms is real, not a reconnect). */
